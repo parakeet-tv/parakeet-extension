@@ -19,7 +19,6 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = {
       // Allow scripts in the webview
       enableScripts: true,
-
       localResourceRoots: [this._extensionUri],
     };
 
