@@ -1,6 +1,7 @@
 <script lang="ts">
   import { allComponents, provideVSCodeDesignSystem } from "@vscode/webview-ui-toolkit";
   import { vscode } from "./lib/vscode";
+  import { ws } from "./lib/partykit";
 
   provideVSCodeDesignSystem().register(allComponents);
 
@@ -9,6 +10,12 @@
       command: "hello",
       text: "testing",
     });
+
+    ws.send(
+      JSON.stringify({
+        message: "hello world",
+      })
+    );
   }
 </script>
 
