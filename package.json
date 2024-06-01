@@ -29,7 +29,8 @@
         {
           "id": "parakeet.mainView",
           "type": "webview",
-          "name": "Go Live"
+          "name": "Parakeet.tv",
+          "contextualTitle": "Parakeet.tv"
         }
       ]
     },
