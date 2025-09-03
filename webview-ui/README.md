@@ -1,1 +1,0 @@
-# Parakeet Extension Webview UI
