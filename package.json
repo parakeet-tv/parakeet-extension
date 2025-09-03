@@ -26,7 +26,25 @@
         "command": "parakeet-tv.statusBarClick",
         "title": "Parakeet Status Bar Click"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "parakeetTv",
+          "title": "Parakeet.tv",
+          "icon": "resources/favicon.svg"
+        }
+      ]
+    },
+    "views": {
+      "parakeetTv": [
+        {
+          "id": "parakeetView",
+          "name": "Parakeet.tv",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
