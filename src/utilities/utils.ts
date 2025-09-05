@@ -1,6 +1,6 @@
-import { Uri, Webview } from "vscode";
+import { Uri, type Webview } from "vscode";
 import * as vscode from "vscode";
-import { API, GitExtension } from "../git";
+import type { API, GitExtension } from "../git";
 import * as path from "path";
 
 /**

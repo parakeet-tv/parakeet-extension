@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { getNonce, getUri, generateTagsFromRepo } from "../utilities/utils";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { startStream } from "../stream";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "parakeet.mainView";
@@ -39,6 +39,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "generateTags":
           this._generateTagsForWebview(webviewView.webview);
+          return;
+        case "startStream":
+          startStream();
           return;
       }
     });

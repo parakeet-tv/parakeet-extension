@@ -4,6 +4,7 @@
   "description": "Share your code with the world",
   "version": "0.0.1",
   "publisher": "parakeet.tv",
+  "type": "commonjs",
   "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.96.2"
@@ -73,5 +74,11 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.2"
   },
-  "extensionDependencies": ["vscode.git"]
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "dependencies": {
+    "partysocket": "^1.1.5",
+    "yjs": "^13.6.27"
+  }
 }
