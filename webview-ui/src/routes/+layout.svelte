@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import '@vscode-elements/elements/';
 	import favicon from '$lib/assets/favicon.svg';
 
 	let { children } = $props();

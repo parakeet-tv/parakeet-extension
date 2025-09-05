@@ -46,6 +46,7 @@
 	},
 	"dependencies": {
 		"@vscode-elements/elements": "^2.3.0",
-		"partysocket": "^1.1.5"
+		"partysocket": "^1.1.5",
+		"zod": "^4.1.5"
 	}
 }

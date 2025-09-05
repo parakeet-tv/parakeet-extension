@@ -65,12 +65,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
       `<head$1>
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'none';
-    img-src ${webview.cspSource} data:;
-    font-src ${webview.cspSource};
-    style-src ${webview.cspSource} 'unsafe-inline';
-    script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-eval';
-    script-src-elem 'nonce-${nonce}' ${webview.cspSource};
-    connect-src ${webview.cspSource} https:;
+    img-src ${webview.cspSource} data: https://*.parakeet.tv https://parakeet.tv;
+    font-src ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv;
+    style-src ${webview.cspSource} 'unsafe-inline' https://*.parakeet.tv https://parakeet.tv;
+    script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-eval' https://*.parakeet.tv https://parakeet.tv;
+    script-src-elem 'nonce-${nonce}' ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv;
+    connect-src ${webview.cspSource} https: https://*.parakeet.tv https://parakeet.tv;
     worker-src ${webview.cspSource};
     form-action 'none';
   ">
