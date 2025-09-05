@@ -65,7 +65,3 @@ function relativeLuminance(r: number, g: number, b: number): number {
   const R = lin(r), G = lin(g), B = lin(b);
   return 0.2126 * R + 0.7152 * G + 0.0722 * B;
 }
-
-/* ---------- example ---------- */
-console.log('VS Code theme dark?', isVscodeDark());           // default cutoff 0.4
-console.log('More strict cutoff (0.5):', isVscodeDark(0.5));
