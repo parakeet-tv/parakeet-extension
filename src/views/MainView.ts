@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { getNonce, getUri, generateTagsFromRepo } from "../utilities/utils";
 import { readFileSync } from "fs";
-import { startStream } from "../stream";
+import { startStream, stopAllStreams } from "../stream";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "parakeet.mainView";
@@ -42,6 +42,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "startStream":
           startStream();
+          return;
+        case "stopStream":
+          stopAllStreams();
           return;
       }
     });

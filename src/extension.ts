@@ -29,6 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (editor) {
             const document = editor.document;
             console.log("Active editor changed:", document.uri.toString());
+            
             isFileGitIgnored(document.uri).then((ignored) => {
                 console.log(`${document.uri.toString()} ignored: ${ignored}`);
             });

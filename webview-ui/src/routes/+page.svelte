@@ -205,10 +205,19 @@
 			className="w-full"
 		/>
 	</div>
-	<Button
-		onclick={() => {
-			vscode.postMessage({ command: 'startStream' });
-		}}
-		class="w-full">Start Stream</Button
-	>
+	<div class="flex gap-2">
+		<Button
+			onclick={() => {
+				vscode.postMessage({ command: 'startStream' });
+			}}
+			class="flex-1">Start Global Stream</Button
+		>
+		<Button
+			onclick={() => {
+				vscode.postMessage({ command: 'stopStream' });
+			}}
+			variant="outline"
+			class="flex-1">Stop Stream</Button
+		>
+	</div>
 </div>
