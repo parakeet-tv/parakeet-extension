@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { getNonce, getUri } from "../utilities/utils";
+import { getNonce, getUri, generateTagsFromRepo } from "../utilities/utils";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -27,7 +27,10 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-    webviewView.webview.onDidReceiveMessage((message: any) => {
+    // Automatically generate tags on startup
+    this._generateTagsForWebview(webviewView.webview);
+
+    webviewView.webview.onDidReceiveMessage(async (message: any) => {
       const command = message.command;
       const text = message.text;
 
@@ -38,6 +41,22 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
       }
     });
+  }
+
+  private async _generateTagsForWebview(webview: vscode.Webview): Promise<void> {
+    try {
+      const tags = await generateTagsFromRepo();
+      webview.postMessage({
+        command: "tagsGenerated",
+        tags: tags
+      });
+    } catch (error) {
+      console.error("Error generating tags:", error);
+      webview.postMessage({
+        command: "tagsGenerated",
+        tags: []
+      });
+    }
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {

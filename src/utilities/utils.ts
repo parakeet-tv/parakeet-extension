@@ -1,6 +1,7 @@
 import { Uri, Webview } from "vscode";
 import * as vscode from "vscode";
 import { API, GitExtension } from "../git";
+import * as path from "path";
 
 /**
  * A helper function that returns a unique alphanumeric identifier called a nonce.
@@ -60,3 +61,116 @@ export async function isFileGitIgnored(uri: vscode.Uri): Promise<boolean> {
     const ignored = await repo.checkIgnore([uri.fsPath]);
     return ignored.size > 0;
   }
+
+/**
+ * Generates relevant tags based on the repository analysis
+ */
+export async function generateTagsFromRepo(): Promise<string[]> {
+  const tags = new Set<string>();
+
+  // Get workspace folders
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) return [];
+
+  // Grab the Git extension
+  const gitExt = vscode.extensions.getExtension<GitExtension>('vscode.git')?.exports;
+  if (!gitExt || !gitExt.enabled) return [];
+
+  const api: API = gitExt.getAPI(1);
+
+  for (const folder of workspaceFolders) {
+    // Find the repository
+    const repo = api.repositories.find(r => folder.uri.fsPath.startsWith(r.rootUri.fsPath));
+    if (!repo) continue;
+
+    // Add tags from package.json if it exists
+    const packageJsonUri = Uri.joinPath(folder.uri, 'package.json');
+    try {
+      const packageJsonContent = await vscode.workspace.fs.readFile(packageJsonUri);
+      const packageJson = JSON.parse(packageJsonContent.toString());
+
+      // Add programming language/framework tags
+      if (packageJson.dependencies || packageJson.devDependencies) {
+        const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+        // Common framework/library mappings
+        const frameworkMappings: { [key: string]: string } = {
+          'react': 'react',
+          'vue': 'vue',
+          '@angular': 'angular',
+          'svelte': 'svelte',
+          'express': 'nodejs',
+          'typescript': 'typescript',
+          'webpack': 'webpack',
+          'vite': 'vite',
+          'next': 'nextjs',
+          'nuxt': 'nuxt'
+        };
+
+        for (const dep of Object.keys(allDeps)) {
+          const tag = frameworkMappings[dep];
+          if (tag) tags.add(tag);
+        }
+      }
+    } catch (error) {
+      // package.json doesn't exist or is invalid, continue
+    }
+
+    // Analyze file extensions in the workspace
+    const pattern = new vscode.RelativePattern(folder, '**/*');
+    const files = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 100);
+
+    const extensions = new Set<string>();
+    for (const file of files) {
+      const ext = path.extname(file.fsPath).toLowerCase();
+      extensions.add(ext);
+    }
+
+    // Map extensions to language tags
+    const languageMappings: { [key: string]: string } = {
+      '.js': 'javascript',
+      '.ts': 'typescript',
+      '.jsx': 'react',
+      '.tsx': 'react',
+      '.py': 'python',
+      '.java': 'java',
+      '.cpp': 'cpp',
+      '.c': 'c',
+      '.cs': 'csharp',
+      '.php': 'php',
+      '.rb': 'ruby',
+      '.go': 'go',
+      '.rs': 'rust',
+      '.swift': 'swift',
+      '.kt': 'kotlin',
+      '.scala': 'scala',
+      '.html': 'html',
+      '.css': 'css',
+      '.scss': 'sass',
+      '.less': 'less',
+      '.vue': 'vue',
+      '.svelte': 'svelte'
+    };
+
+    for (const ext of extensions) {
+      const tag = languageMappings[ext];
+      if (tag) tags.add(tag);
+    }
+
+    // Add general tags based on project structure
+    const hasSrc = await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, 'src')).then(() => true, () => false);
+    const hasLib = await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, 'lib')).then(() => true, () => false);
+    const hasTest = await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, 'test')).then(() => true, () => false) ||
+                   await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, 'tests')).then(() => true, () => false);
+
+    if (hasSrc || hasLib) tags.add('web-development');
+    if (hasTest) tags.add('testing');
+
+    // Add VS Code extension tag if this is a VS Code extension
+    const hasExtensionJson = await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, '.vscode')).then(() => true, () => false);
+    if (hasExtensionJson) tags.add('vscode-extension');
+  }
+
+  // Convert to array and limit to 10 tags
+  return Array.from(tags).slice(0, 10);
+}
