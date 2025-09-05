@@ -6,7 +6,7 @@
   "publisher": "parakeet.tv",
   "icon": "resources/icon.png",
   "engines": {
-    "vscode": "^1.99.3"
+    "vscode": "^1.96.2"
   },
   "categories": [
     "Chat",

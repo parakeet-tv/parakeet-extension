@@ -27,17 +27,18 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-    // Automatically generate tags on startup
-    this._generateTagsForWebview(webviewView.webview);
-
     webviewView.webview.onDidReceiveMessage(async (message: any) => {
       const command = message.command;
       const text = message.text;
+      console.log('Received message in main view:', message);
 
       switch (command) {
         case "hello":
           // Code that should run in response to the hello message command
           vscode.window.showInformationMessage(text);
+          return;
+        case "generateTags":
+          this._generateTagsForWebview(webviewView.webview);
           return;
       }
     });
