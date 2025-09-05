@@ -9,8 +9,12 @@ const config = {
 	kit: {
 		adapter: adapter({
 			pages: 'build',
-			assets: 'build',
-		}), prerender: { entries: ['*'] }, paths: { relative: true, base: '', assets: '', }
+			assets: 'build'
+		}),
+		paths: {
+			base: '',
+			assets: ''
+		},
 	}
 };
 
