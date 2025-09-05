@@ -1,6 +1,6 @@
 import { Uri, Webview } from "vscode";
 import * as vscode from "vscode";
-import simpleGit from "simple-git";
+import { API, GitExtension } from "../git";
 
 /**
  * A helper function that returns a unique alphanumeric identifier called a nonce.
@@ -42,19 +42,21 @@ export function getUri(
 /**
  * Returns true if a file uri is ignored by the current git workspace, false otherwise.
  */
-export const isFileGitIgnored = async (uri: vscode.Uri): Promise<boolean> => {
-    const rootFolder = vscode.workspace.getWorkspaceFolder(uri);
-    if (!rootFolder) {
-        return false;
-    }
-
-    const git = simpleGit(rootFolder.uri.path);
-
-    try {
-        const ignored = await git.checkIgnore(uri.path);
-        return ignored.length > 0;
-    } catch (error) {
-        console.error("Error checking if file is ignored by Git:", error);
-        return false;
-    }
-};
+export async function isFileGitIgnored(uri: vscode.Uri): Promise<boolean> {
+    // Grab the Git extension
+    const gitExt = vscode.extensions.getExtension<GitExtension>('vscode.git')?.exports;
+    if (!gitExt || !gitExt.enabled) return false;
+  
+    const api: API = gitExt.getAPI(1);
+  
+    // Find the repository that owns this URI
+    const repo =
+      api.getRepository(uri) ??
+      api.repositories.find(r => uri.fsPath.startsWith(r.rootUri.fsPath));
+  
+    if (!repo) return false;
+  
+    // VS Code’s Git API returns the subset of URIs that are ignored
+    const ignored = await repo.checkIgnore([uri.fsPath]);
+    return ignored.size > 0;
+  }

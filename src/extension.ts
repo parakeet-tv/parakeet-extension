@@ -5,6 +5,7 @@ import { isFileGitIgnored } from "./utilities/utils";
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+	console.log('Parakeet extension activated');
     const provider = new MainViewProvider(context.extensionUri);
 
     // Listen for changes to the text document (any text document)
