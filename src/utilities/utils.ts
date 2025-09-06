@@ -57,10 +57,24 @@ export async function isFileGitIgnored(uri: vscode.Uri): Promise<boolean> {
   
     if (!repo) return false;
   
-    // VS Code’s Git API returns the subset of URIs that are ignored
+    // VS Code's Git API returns the subset of URIs that are ignored
     const ignored = await repo.checkIgnore([uri.fsPath]);
     return ignored.size > 0;
   }
+
+/**
+ * Returns true if a file is larger than 0.8 MB, false otherwise.
+ */
+export async function isFileTooLarge(uri: vscode.Uri): Promise<boolean> {
+  try {
+    const stat = await vscode.workspace.fs.stat(uri);
+    const maxSizeBytes = 0.8 * 1024 * 1024; // 0.8 MB in bytes
+    return stat.size > maxSizeBytes;
+  } catch (error) {
+    // If we can't stat the file, assume it's not too large
+    return false;
+  }
+}
 
 /**
  * Generates relevant tags based on the repository analysis

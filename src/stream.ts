@@ -13,7 +13,7 @@ import {
   Code,
   Hash,
 } from "parakeet-proto";
-import { isFileGitIgnored } from "./utilities/utils";
+import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 
 /**
  * Global streaming state for the extension (single active doc).
@@ -25,13 +25,15 @@ interface GlobalStreamState {
   disposables: vscode.Disposable[];
   currentUri: string | null;
   currentIgnored: boolean;
-  ignoredCache: Map<string, boolean>;
+  ignoredCache: Map<string, { gitIgnored: boolean; tooLarge: boolean }>;
   isStreaming: boolean;
   currentFileId: number | null;
   /** Queue frames until socket is OPEN (prevents initial-drop). */
   sendQueue: Uint8Array[]; // <-- add
   /** Convenience flag (mirrors socket.readyState === OPEN). */
   isOpen: boolean;
+  /** Debounce timer for highlight recomputation. */
+  highlightTimer: NodeJS.Timeout | null;
 }
 const state: GlobalStreamState = {
   socket: null,
@@ -45,6 +47,7 @@ const state: GlobalStreamState = {
   currentFileId: null,
   sendQueue: [],
   isOpen: false,
+  highlightTimer: null,
 };
 
 /**
@@ -69,7 +72,10 @@ export async function startStream() {
   const sub2 = vscode.workspace.onDidChangeTextDocument(
     (e) => void onDidChangeTextDocument(e)
   );
-  state.disposables.push(sub1, sub2);
+  const sub3 = vscode.window.onDidChangeTextEditorSelection(
+    (e) => void onDidChangeTextEditorSelection(e)
+  );
+  state.disposables.push(sub1, sub2, sub3);
 
   // Kick off with current active file
   await handleActiveFileChange();
@@ -202,19 +208,27 @@ async function handleActiveFileChange() {
   // announce active file to viewers
   sendFrame(Control.control.fileInfo({ fileId, path: relPath }));
 
-  // Check gitignore status (cached)
-  let ignored = state.ignoredCache.get(uriStr);
-  if (ignored === undefined) {
-    ignored = await isFileGitIgnored(uri);
-    state.ignoredCache.set(uriStr, ignored);
+  // Check gitignore status and file size (cached)
+  let ignoreInfo = state.ignoredCache.get(uriStr);
+  if (ignoreInfo === undefined) {
+    const [gitIgnored, tooLarge] = await Promise.all([
+      isFileGitIgnored(uri),
+      isFileTooLarge(uri)
+    ]);
+    ignoreInfo = { gitIgnored, tooLarge };
+    state.ignoredCache.set(uriStr, ignoreInfo);
   }
 
+  const ignored = ignoreInfo.gitIgnored || ignoreInfo.tooLarge;
   state.currentUri = uriStr;
   state.currentIgnored = ignored;
 
   if (ignored) {
+    const reason = ignoreInfo.gitIgnored 
+      ? "file is gitignored" 
+      : "file is too large (>0.8 MB)";
     console.log(
-      "[parakeet] file is gitignored; not streaming:",
+      `[parakeet] ${reason}; not streaming:`,
       vscode.workspace.asRelativePath(uri)
     );
     teardownDoc();
@@ -232,6 +246,10 @@ async function handleActiveFileChange() {
     "[parakeet] sent SNAPSHOT for",
     vscode.workspace.asRelativePath(uri)
   );
+
+  // Immediately sync pointer & highlights for the new active file
+  sendCursorForEditor(editor);
+  sendHighlightsForEditor(editor);
 }
 
 /* ---------------------------- text changes ----------------------------- */
@@ -256,6 +274,58 @@ function onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
     if (change.text.length > 0) {
       ytext.insert(start, change.text);
     }
+  }
+}
+
+/* ------------------------- cursor / highlights ------------------------- */
+
+function onDidChangeTextEditorSelection(
+  event: vscode.TextEditorSelectionChangeEvent
+) {
+  if (!state.isStreaming || state.currentIgnored) return;
+  const editor = event.textEditor;
+  if (editor.document.uri.toString() !== state.currentUri) return;
+  sendCursorForEditor(editor);
+  // debounce highlight recomputation to avoid floods as the caret moves
+  if (state.highlightTimer) clearTimeout(state.highlightTimer);
+  state.highlightTimer = setTimeout(() => {
+    sendHighlightsForEditor(editor);
+  }, 150);
+}
+
+function sendCursorForEditor(editor: vscode.TextEditor) {
+  if (state.currentFileId == null) return;
+  const cursors = editor.selections.map((sel) => ({
+    anchor: { line: sel.anchor.line, ch: sel.anchor.character },
+    head: { line: sel.active.line, ch: sel.active.character },
+  }));
+  sendFrame(Control.control.cursor({ cursors }, state.currentFileId!));
+}
+
+async function sendHighlightsForEditor(editor: vscode.TextEditor) {
+  try {
+    if (state.currentFileId == null) return;
+    // Query VS Code's language features for "document highlights" at the active position
+    const pos = editor.selection.active;
+    const res = (await vscode.commands.executeCommand(
+      "vscode.executeDocumentHighlights",
+      editor.document.uri,
+      pos
+    )) as vscode.DocumentHighlight[] | undefined;
+
+    const ranges =
+      res?.map((h) => ({
+        sl: h.range.start.line,
+        sc: h.range.start.character,
+        el: h.range.end.line,
+        ec: h.range.end.character,
+        kind: typeof h.kind === "number" ? h.kind : undefined, // 0,1,2 (text/read/write)
+      })) ?? [];
+
+    sendFrame(Control.control.highlights({ ranges }, state.currentFileId!));
+  } catch (err) {
+    // Non-fatal; some languages won't provide highlights
+    // console.debug("[parakeet] highlights unavailable:", err);
   }
 }
 
@@ -291,6 +361,11 @@ function teardownDoc() {
   }
   state.ydoc = null;
   state.ytext = null;
+
+  if (state.highlightTimer) {
+    clearTimeout(state.highlightTimer);
+    state.highlightTimer = null;
+  }
 }
 
 /* ---------------------------- send helpers ----------------------------- */
