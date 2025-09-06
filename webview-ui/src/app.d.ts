@@ -12,6 +12,7 @@ declare global {
 		// interface Platform {}
 	}
 	var vscode: WebviewApi<any>;
+	var __PARAKEET_CHAT_MODE__: boolean | undefined;
 }
 
 export {};

@@ -35,6 +35,13 @@
           "title": "Parakeet.tv",
           "icon": "resources/favicon.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "parakeetChat",
+          "title": "Stream Chat",
+          "icon": "resources/favicon.svg"
+        }
       ]
     },
     "views": {
@@ -42,6 +49,13 @@
         {
           "id": "parakeet.mainView",
           "name": "Parakeet.tv",
+          "type": "webview"
+        }
+      ],
+      "parakeetChat": [
+        {
+          "id": "parakeet.chatView",
+          "name": "Chat",
           "type": "webview"
         }
       ]
@@ -78,7 +92,7 @@
     "vscode.git"
   ],
   "dependencies": {
-		"parakeet-proto": "git+ssh://git@github.com/benank/parakeet-proto.git#v0.5.0",
+		"parakeet-proto": "git+ssh://git@github.com/benank/parakeet-proto.git#v0.7.0",
     "partysocket": "^1.1.5",
     "yjs": "^13.6.27"
   }

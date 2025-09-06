@@ -34,8 +34,8 @@ interface GlobalStreamState {
   isOpen: boolean;
   /** Debounce timer for highlight recomputation. */
   highlightTimer: NodeJS.Timeout | null;
-  /** Callback to notify webview of state changes */
-  onStateChange?: (state: StreamingState) => void;
+  /** Callbacks to notify webviews of state changes */
+  onStateChangeCallbacks: ((state: StreamingState) => void)[];
   viewerCount: number;
 }
 const state: GlobalStreamState = {
@@ -51,7 +51,7 @@ const state: GlobalStreamState = {
   sendQueue: [],
   isOpen: false,
   highlightTimer: null,
-  onStateChange: undefined,
+  onStateChangeCallbacks: [],
   viewerCount: 0,
 };
 
@@ -62,12 +62,22 @@ export type StreamingState = {
 };
 
 /**
- * Set callback to notify webview of state changes
+ * Add callback to notify webviews of state changes
+ */
+export function addStateChangeCallback(
+  callback: (state: StreamingState) => void
+) {
+  state.onStateChangeCallbacks.push(callback);
+}
+
+/**
+ * Set callback to notify webview of state changes (legacy support)
  */
 export function setStateChangeCallback(
   callback: (state: StreamingState) => void
 ) {
-  state.onStateChange = callback;
+  // Clear existing callbacks and add the new one for backward compatibility
+  state.onStateChangeCallbacks = [callback];
 }
 
 /**
@@ -82,10 +92,11 @@ export function getStreamingState(): StreamingState {
 }
 
 /**
- * Notify webview of state changes
+ * Notify webviews of state changes
  */
 function notifyStateChange() {
-  state.onStateChange?.(getStreamingState());
+  const currentState = getStreamingState();
+  state.onStateChangeCallbacks.forEach(callback => callback(currentState));
 }
 
 /**
@@ -157,7 +168,7 @@ export function stopAllStreams() {
 function initSocket() {
   const host = "localhost:8787"; // TODO: make configurable
   const protocol = "ws";
-  const room = "monaco";
+  const room = "benank";
   const party = "parakeet-server";
 
   const ws = new Partysocket({ host, protocol, party, room });
