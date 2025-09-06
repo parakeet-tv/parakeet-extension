@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { stateStore, getState, setState, type State } from '$lib/state';
+	import { isStreaming, isConnected } from '$lib/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -14,6 +15,7 @@
 	import { InfoIcon } from '@lucide/svelte';
 
 	let state: State = $state(getState());
+	let viewerCount = $state(0);
 
 	function handleTagsChange(tags: string[]) {
 		state.userTags = tags;
@@ -27,6 +29,10 @@
 			if (message.command === 'tagsGenerated') {
 				state.autoTags = message.tags;
 				setState(state);
+			} else if (message.command === 'streamingStateChanged') {
+				isStreaming.set(message.isStreaming);
+				isConnected.set(message.isConnected);
+				viewerCount = message.viewerCount;
 			}
 		};
 
@@ -37,6 +43,7 @@
 	onMount(() => {
 		if (ctx === 'extension') {
 			vscode.postMessage({ command: 'generateTags' });
+			vscode.postMessage({ command: 'getStreamingState' });
 		}
 	});
 </script>
@@ -48,6 +55,8 @@
 >
 	<img src={favicon} alt="Parakeet.tv" class="h-6 w-6" /> Parakeet.tv
 </a>
+
+
 
 <!-- Stream Key Section -->
 <div class="mb-6">
@@ -208,16 +217,24 @@
 	<div class="flex gap-2 flex-col">
 		<Button
 			onclick={() => {
-				vscode.postMessage({ command: 'startStream' });
+				if ($isStreaming) {
+					vscode.postMessage({ command: 'stopStream' });
+				} else {
+					vscode.postMessage({ command: 'startStream' });
+				}
 			}}
-			class="flex-1">Start Global Stream</Button
+			variant={$isStreaming ? "outline" : "default"}
+			class="flex-1"
 		>
-		<Button
-			onclick={() => {
-				vscode.postMessage({ command: 'stopStream' });
-			}}
-			variant="outline"
-			class="flex-1">Stop Stream</Button
-		>
+			{$isStreaming ? 'Stop Stream' : 'Start Stream'}
+		</Button>
+		{#if $isStreaming}
+			<div class="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mb-2">
+				<div class="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+				Now LIVE on Parakeet.tv
+				<br />
+				Viewers: {viewerCount}
+			</div>
+		{/if}
 	</div>
 </div>

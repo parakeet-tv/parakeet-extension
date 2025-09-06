@@ -34,6 +34,9 @@ interface GlobalStreamState {
   isOpen: boolean;
   /** Debounce timer for highlight recomputation. */
   highlightTimer: NodeJS.Timeout | null;
+  /** Callback to notify webview of state changes */
+  onStateChange?: (state: StreamingState) => void;
+  viewerCount: number;
 }
 const state: GlobalStreamState = {
   socket: null,
@@ -48,7 +51,42 @@ const state: GlobalStreamState = {
   sendQueue: [],
   isOpen: false,
   highlightTimer: null,
+  onStateChange: undefined,
+  viewerCount: 0,
 };
+
+export type StreamingState = {
+  isStreaming: boolean;
+  isConnected: boolean;
+  viewerCount: number;
+};
+
+/**
+ * Set callback to notify webview of state changes
+ */
+export function setStateChangeCallback(
+  callback: (state: StreamingState) => void
+) {
+  state.onStateChange = callback;
+}
+
+/**
+ * Get current streaming state
+ */
+export function getStreamingState(): StreamingState {
+  return {
+    isStreaming: state.isStreaming,
+    isConnected: state.isOpen,
+    viewerCount: state.viewerCount,
+  };
+}
+
+/**
+ * Notify webview of state changes
+ */
+function notifyStateChange() {
+  state.onStateChange?.(getStreamingState());
+}
 
 /**
  * Start streaming after the user triggers "startStream".
@@ -81,6 +119,7 @@ export async function startStream() {
   await handleActiveFileChange();
 
   state.isStreaming = true;
+  notifyStateChange();
   console.log("[parakeet] stream started");
 }
 
@@ -109,6 +148,7 @@ export function stopAllStreams() {
   state.currentUri = null;
   state.currentIgnored = false;
   state.isStreaming = false;
+  notifyStateChange();
   console.log("[parakeet] stream stopped");
 }
 
@@ -128,6 +168,7 @@ function initSocket() {
   ws.onopen = () => {
     console.log("[parakeet] ws open");
     state.isOpen = true;
+    notifyStateChange();
     flushQueue();
     // handshake
     ws.send(
@@ -155,6 +196,11 @@ function initSocket() {
         if (header.type === ControlType.WELCOME) {
           const msg = unpackMsgpack<{ seq: number }>(payloadView);
           console.log("[parakeet] WELCOME seq=", msg?.seq);
+        } else if (header.type === ControlType.VIEWER_COUNT) {
+          const msg = unpackMsgpack<{ count: number }>(payloadView);
+          console.log("[parakeet] VIEWER_COUNT=", msg?.count);
+          state.viewerCount = msg?.count ?? 0;
+          notifyStateChange();
         }
         return;
       case ChannelId.CHAT: {
@@ -175,6 +221,7 @@ function initSocket() {
   ws.onclose = (e) => {
     console.log("[parakeet] ws closed", e.code, e.reason);
     state.isOpen = false;
+    notifyStateChange();
   };
 
   state.socket = ws;
@@ -213,7 +260,7 @@ async function handleActiveFileChange() {
   if (ignoreInfo === undefined) {
     const [gitIgnored, tooLarge] = await Promise.all([
       isFileGitIgnored(uri),
-      isFileTooLarge(uri)
+      isFileTooLarge(uri),
     ]);
     ignoreInfo = { gitIgnored, tooLarge };
     state.ignoredCache.set(uriStr, ignoreInfo);
@@ -224,8 +271,8 @@ async function handleActiveFileChange() {
   state.currentIgnored = ignored;
 
   if (ignored) {
-    const reason = ignoreInfo.gitIgnored 
-      ? "file is gitignored" 
+    const reason = ignoreInfo.gitIgnored
+      ? "file is gitignored"
       : "file is too large (>0.8 MB)";
     console.log(
       `[parakeet] ${reason}; not streaming:`,

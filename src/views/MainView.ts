@@ -1,7 +1,12 @@
 import * as vscode from "vscode";
 import { getNonce, getUri, generateTagsFromRepo } from "../utilities/utils";
 import { readFileSync } from "fs";
-import { startStream, stopAllStreams } from "../stream";
+import {
+  startStream,
+  stopAllStreams,
+  setStateChangeCallback,
+  getStreamingState,
+} from "../stream";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "parakeet.mainView";
@@ -27,10 +32,31 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
+    // Set up streaming state callback
+    setStateChangeCallback(({ isStreaming, isConnected, viewerCount }) => {
+      webviewView.webview.postMessage({
+        command: "streamingStateChanged",
+        isStreaming,
+        isConnected,
+        viewerCount,
+      });
+
+      if (isStreaming && isConnected) {
+        webviewView.badge = {
+          tooltip: `LIVE with ${viewerCount} viewer${
+            viewerCount === 1 ? "" : "s"
+          }`,
+          value: viewerCount,
+        };
+      } else {
+        webviewView.badge = undefined;
+      }
+    });
+
     webviewView.webview.onDidReceiveMessage(async (message: any) => {
       const command = message.command;
       const text = message.text;
-      console.log('Received message in main view:', message);
+      console.log("Received message in main view:", message);
 
       switch (command) {
         case "hello":
@@ -45,6 +71,14 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "stopStream":
           stopAllStreams();
+          return;
+        case "getStreamingState":
+          const currentState = getStreamingState();
+          webviewView.webview.postMessage({
+            command: "streamingStateChanged",
+            isStreaming: currentState.isStreaming,
+            isConnected: currentState.isConnected,
+          });
           return;
       }
     });
