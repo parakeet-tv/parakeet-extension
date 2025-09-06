@@ -205,7 +205,7 @@
 			className="w-full"
 		/>
 	</div>
-	<div class="flex gap-2">
+	<div class="flex gap-2 flex-col">
 		<Button
 			onclick={() => {
 				vscode.postMessage({ command: 'startStream' });

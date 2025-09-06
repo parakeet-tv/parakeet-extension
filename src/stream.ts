@@ -1,328 +1,316 @@
+// stream.ts
 import * as vscode from "vscode";
-import { PartySocket } from "partysocket";
+import Partysocket from "partysocket";
 import * as Y from "yjs";
+import {
+  PROTOCOL_VERSION,
+  ChannelId,
+  ControlType,
+  CodeType,
+  decodeHeaderOnly,
+  unpackMsgpack,
+  Control,
+  Code,
+  Hash,
+} from "parakeet-proto";
+import { isFileGitIgnored } from "./utilities/utils";
 
 /**
- * Global Streaming Architecture
- * 
- * This module implements a global streaming system that:
- * 1. Maintains a single WebSocket connection to the server
- * 2. Tracks the currently active file in VS Code
- * 3. When file switches occur:
- *    - Sends the entire new file content to the server (FILE_SWITCH message)
- *    - Creates a new Yjs document for the file
- * 4. For subsequent edits to the same file:
- *    - Sends only delta updates (UPDATE messages)
- * 
- * Message Protocol:
- * - HELLO (0x01): Initial handshake
- * - UPDATE (0x02): Delta updates using Yjs
- * - FILE_SWITCH (0x03): Full file content on file change
- *   Format: [FILE_SWITCH, fileName_length(4 bytes), fileName, content]
- */
-
-/**
- * Interface to store the global stream connection state
+ * Global streaming state for the extension (single active doc).
  */
 interface GlobalStreamState {
-  socket: PartySocket | null;
+  socket: Partysocket | null;
   ydoc: Y.Doc | null;
+  ytext: Y.Text | null;
   disposables: vscode.Disposable[];
-  currentDocumentUri: string | null;
+  currentUri: string | null;
+  currentIgnored: boolean;
+  ignoredCache: Map<string, boolean>;
   isStreaming: boolean;
+  currentFileId: number | null;
+  /** Queue frames until socket is OPEN (prevents initial-drop). */
+  sendQueue: Uint8Array[]; // <-- add
+  /** Convenience flag (mirrors socket.readyState === OPEN). */
+  isOpen: boolean;
 }
-
-// Global streaming state
-const globalStream: GlobalStreamState = {
+const state: GlobalStreamState = {
   socket: null,
   ydoc: null,
+  ytext: null,
   disposables: [],
-  currentDocumentUri: null,
-  isStreaming: false
+  currentUri: null,
+  currentIgnored: false,
+  ignoredCache: new Map(),
+  isStreaming: false,
+  currentFileId: null,
+  sendQueue: [],
+  isOpen: false,
 };
 
-// Protocol constants
-const HELLO = 0x01;
-const UPDATE = 0x02;
-const FILE_SWITCH = 0x03; // New message type for file switches
-
 /**
- * Starts global collaborative streaming
- * This should be called once to enable streaming for all files
+ * Start streaming after the user triggers "startStream".
+ * - opens socket
+ * - binds VS Code events
+ * - sends HELLO and initial snapshot (if file not gitignored)
  */
-export const startStream = () => {
-  console.log("Starting global stream");
-  
-  if (globalStream.isStreaming) {
-    console.log("Stream already active");
+export async function startStream() {
+  if (state.isStreaming) {
+    console.log("[parakeet] stream already active");
     return;
   }
+  console.log("[parakeet] starting stream…");
 
-  // Initialize the global connection
-  initializeGlobalConnection();
-  
-  // Set up global event listeners
-  setupGlobalListeners();
-  
-  // Handle the currently active file
-  handleActiveFileChange();
-  
-  globalStream.isStreaming = true;
-  console.log("Global stream started");
-};
+  initSocket();
 
-/**
- * Initializes the global socket connection
- */
-const initializeGlobalConnection = () => {
-  // Connect to partysocket server
-  globalStream.socket = new PartySocket({
-    host: "localhost:8787",
-    party: "parakeet-server", 
-    room: "monaco",
-    protocol: "ws",
-  });
+  // Bind global VS Code listeners
+  const sub1 = vscode.window.onDidChangeActiveTextEditor(
+    () => void handleActiveFileChange()
+  );
+  const sub2 = vscode.workspace.onDidChangeTextDocument(
+    (e) => void onDidChangeTextDocument(e)
+  );
+  state.disposables.push(sub1, sub2);
 
-  globalStream.socket.binaryType = "arraybuffer";
+  // Kick off with current active file
+  await handleActiveFileChange();
 
-  globalStream.socket.addEventListener("open", () => {
-    console.log("Connected to partysocket server");
-  });
+  state.isStreaming = true;
+  console.log("[parakeet] stream started");
+}
 
-  globalStream.socket.addEventListener("message", async (ev) => {
+/** Stop everything and clean up. */
+export function stopAllStreams() {
+  console.log("[parakeet] stopping stream…");
+  // socket
+  try {
+    state.socket?.close();
+  } catch {}
+  state.socket = null;
+
+  // Y.Doc
+  if (state.ydoc) {
+    try {
+      state.ydoc.destroy();
+    } catch {}
+  }
+  state.ydoc = null;
+  state.ytext = null;
+
+  // listeners
+  state.disposables.forEach((d) => d.dispose());
+  state.disposables = [];
+
+  state.currentUri = null;
+  state.currentIgnored = false;
+  state.isStreaming = false;
+  console.log("[parakeet] stream stopped");
+}
+
+/* --------------------------- socket + routing --------------------------- */
+
+function initSocket() {
+  const host = "localhost:8787"; // TODO: make configurable
+  const protocol = "ws";
+  const room = "monaco";
+  const party = "parakeet-server";
+
+  const ws = new Partysocket({ host, protocol, party, room });
+  ws.binaryType = "arraybuffer";
+  state.socket = ws;
+  state.isOpen = false;
+
+  ws.onopen = () => {
+    console.log("[parakeet] ws open");
+    state.isOpen = true;
+    flushQueue();
+    // handshake
+    ws.send(
+      Control.control.hello({
+        v: 1,
+        protocol: PROTOCOL_VERSION,
+        client: "vscode",
+        features: ["delta"],
+      })
+    );
+    // NOTE: as the broadcaster we do not request a snapshot
+    flushQueue();
+  };
+
+  ws.onmessage = async (ev) => {
     if (typeof ev.data === "string") return;
-    const ab = ev.data instanceof Blob 
-      ? await ev.data.arrayBuffer()
-      : (ev.data as ArrayBuffer);
-    const buf = new Uint8Array(ab);
-    if (buf.length === 0 || buf[0] !== UPDATE) return;
-    
-    // Apply updates to current Yjs document if it exists
-    if (globalStream.ydoc) {
-      Y.applyUpdate(globalStream.ydoc, buf.subarray(1));
-    }
-  });
-
-  globalStream.socket.addEventListener("error", (error) => {
-    console.error("Partysocket error:", error);
-  });
-
-  globalStream.socket.addEventListener("close", () => {
-    console.log("Partysocket connection closed");
-    resetGlobalStream();
-  });
-};
-
-/**
- * Sets up global event listeners for file changes and editor switches
- */
-const setupGlobalListeners = () => {
-  // Listen for active editor changes (file switches)
-  const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-    if (!globalStream.isStreaming) return;
-    handleActiveFileChange();
-  });
-
-  // Listen for document changes in any file
-  const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
-    if (!globalStream.isStreaming) return;
-    
-    const documentUri = event.document.uri.toString();
-    
-    // Only handle changes for the currently active streaming document
-    if (documentUri !== globalStream.currentDocumentUri) return;
-    
-    handleDocumentChanges(event);
-  });
-
-  globalStream.disposables.push(activeEditorListener, documentChangeListener);
-};
-
-/**
- * Handles when the active file changes - sends full file content
- */
-const handleActiveFileChange = () => {
-  const activeEditor = vscode.window.activeTextEditor;
-  
-  if (!activeEditor) {
-    console.log("No active text editor found");
-    globalStream.currentDocumentUri = null;
-    return;
-  }
-
-  const document = activeEditor.document;
-  const documentUri = document.uri.toString();
-  
-  // If this is the same document, no need to switch
-  if (documentUri === globalStream.currentDocumentUri) {
-    return;
-  }
-
-  const documentName = vscode.workspace.asRelativePath(document.uri);
-  const documentText = document.getText();
-  
-  console.log("Switching to document:", documentName);
-  console.log("Document URI:", documentUri);
-  
-  // Update current document
-  globalStream.currentDocumentUri = documentUri;
-  
-  // Create new Yjs document for this file
-  if (globalStream.ydoc) {
-    globalStream.ydoc.destroy();
-  }
-  
-  globalStream.ydoc = new Y.Doc();
-  const ytext = globalStream.ydoc.getText("monaco");
-  
-  // Set the document content in Yjs
-  ytext.insert(0, documentText);
-  
-  // Set up update handler for this document
-  setupYjsUpdateHandler();
-  
-  // Send file switch message with full content
-  sendFileSwitch(documentName, documentText);
-};
-
-/**
- * Sets up the Yjs update handler for the current document
- */
-const setupYjsUpdateHandler = () => {
-  if (!globalStream.ydoc) return;
-  
-  const updateHandler = (update: Uint8Array, origin: any) => {
-    console.log("Yjs update handler called", { 
-      updateLength: update.byteLength, 
-      origin: origin
-    });
-    
-    // Send delta updates to server
-    const framed = new Uint8Array(1 + update.byteLength);
-    framed[0] = UPDATE;
-    framed.set(update, 1);
-    
-    if (globalStream.socket && globalStream.socket.readyState === WebSocket.OPEN) {
-      globalStream.socket.send(framed.buffer);
-      console.log("Sent delta update to stream - size:", framed.byteLength);
-    } else {
-      console.log("Socket not ready - state:", globalStream.socket?.readyState);
+    const bytes =
+      ev.data instanceof Blob
+        ? new Uint8Array(await ev.data.arrayBuffer())
+        : new Uint8Array(ev.data as ArrayBuffer);
+    // Header-only routing; do not process CODE frames (we’re the broadcaster).
+    const { header, payloadView } = decodeHeaderOnly(bytes);
+    switch (header.channel) {
+      case ChannelId.CONTROL:
+        if (header.type === ControlType.WELCOME) {
+          const msg = unpackMsgpack<{ seq: number }>(payloadView);
+          console.log("[parakeet] WELCOME seq=", msg?.seq);
+        }
+        return;
+      case ChannelId.CHAT: {
+        // log-only for now
+        const chat = unpackMsgpack<any>(payloadView);
+        console.log("[parakeet] chat:", chat);
+        return;
+      }
+      case ChannelId.CODE:
+        // ignore; server should not echo to sender, but safe to ignore if it does
+        return;
+      default:
+        return;
     }
   };
 
-  globalStream.ydoc.on("update", updateHandler);
-};
+  ws.onerror = (e) => console.error("[parakeet] ws error", e);
+  ws.onclose = (e) => {
+    console.log("[parakeet] ws closed", e.code, e.reason);
+    state.isOpen = false;
+  };
+
+  state.socket = ws;
+}
+
+/* --------------------------- file switching ---------------------------- */
 
 /**
- * Sends a file switch message with full file content
+ * Handle active editor changes:
+ * - if file is gitignored → mark ignored, tear down any current Y.Doc, do nothing
+ * - else → create Y.Doc, seed with full content, send CODE.SNAPSHOT
  */
-const sendFileSwitch = (fileName: string, content: string) => {
-  if (!globalStream.socket || globalStream.socket.readyState !== WebSocket.OPEN) {
-    console.log("Socket not ready for file switch");
+async function handleActiveFileChange() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    console.log("[parakeet] no active editor");
+    state.currentUri = null;
+    state.currentIgnored = false;
+    teardownDoc();
     return;
   }
 
-  // Create file switch message: [FILE_SWITCH, fileName_length, fileName, content]
-  const fileNameBytes = new TextEncoder().encode(fileName);
-  const contentBytes = new TextEncoder().encode(content);
-  
-  const message = new Uint8Array(
-    1 + // FILE_SWITCH byte
-    4 + // fileName length (4 bytes)
-    fileNameBytes.byteLength + 
-    contentBytes.byteLength
+  const uri = editor.document.uri;
+  const uriStr = uri.toString();
+  if (uriStr === state.currentUri) return; // no-op
+
+  const relPath = vscode.workspace.asRelativePath(uri);
+  const fileId = Hash.fileIdFromPath(relPath);
+  state.currentFileId = fileId;
+
+  // announce active file to viewers
+  sendFrame(Control.control.fileInfo({ fileId, path: relPath }));
+
+  // Check gitignore status (cached)
+  let ignored = state.ignoredCache.get(uriStr);
+  if (ignored === undefined) {
+    ignored = await isFileGitIgnored(uri);
+    state.ignoredCache.set(uriStr, ignored);
+  }
+
+  state.currentUri = uriStr;
+  state.currentIgnored = ignored;
+
+  if (ignored) {
+    console.log(
+      "[parakeet] file is gitignored; not streaming:",
+      vscode.workspace.asRelativePath(uri)
+    );
+    teardownDoc();
+    return;
+  }
+
+  // Create a fresh Y.Doc for this file and seed content
+  resetDoc();
+  const text = editor.document.getText();
+  state.ytext!.insert(0, text);
+
+  // Send full snapshot
+  sendFrame(Code.encodeSnapshot(state.ydoc!, fileId));
+  console.log(
+    "[parakeet] sent SNAPSHOT for",
+    vscode.workspace.asRelativePath(uri)
   );
-  
-  let offset = 0;
-  message[offset++] = FILE_SWITCH;
-  
-  // Write fileName length (4 bytes, little endian)
-  const fileNameLength = fileNameBytes.byteLength;
-  message[offset++] = fileNameLength & 0xFF;
-  message[offset++] = (fileNameLength >> 8) & 0xFF;
-  message[offset++] = (fileNameLength >> 16) & 0xFF;
-  message[offset++] = (fileNameLength >> 24) & 0xFF;
-  
-  // Write fileName
-  message.set(fileNameBytes, offset);
-  offset += fileNameBytes.byteLength;
-  
-  // Write content
-  message.set(contentBytes, offset);
-  
-  globalStream.socket.send(message.buffer);
-  console.log(`Sent file switch to stream - file: ${fileName}, content size: ${contentBytes.byteLength}`);
-};
+}
+
+/* ---------------------------- text changes ----------------------------- */
 
 /**
- * Handles document changes and converts them to Yjs operations
+ * Convert VS Code edits into Y.Text ops so Yjs emits updates (which we forward).
+ * We *don’t* send these edits directly; we let Yjs produce the delta and
+ * stream it via Code.encodeDelta in onYUpdate().
  */
-const handleDocumentChanges = (event: vscode.TextDocumentChangeEvent) => {
-  if (!globalStream.ydoc) return;
-  
-  const ytext = globalStream.ydoc.getText("monaco");
-  
-  console.log("Document change detected for streaming document:", globalStream.currentDocumentUri);
-  console.log("Number of changes:", event.contentChanges.length);
+function onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
+  if (!state.isStreaming || state.currentIgnored) return;
+  if (!state.ydoc || !state.ytext) return;
+  if (event.document.uri.toString() !== state.currentUri) return;
 
-  // Convert VS Code changes to Yjs operations
-  event.contentChanges.forEach((change, index) => {
-    console.log(`Processing change ${index}:`, {
-      rangeStart: change.range.start,
-      rangeEnd: change.range.end,
-      rangeLength: change.rangeLength,
-      text: change.text
-    });
-
-    const startOffset = event.document.offsetAt(change.range.start);
-    console.log(`Change ${index} startOffset:`, startOffset);
-    
-    // Handle deletions first
+  const ytext = state.ytext;
+  // Apply changes in the order VS Code gives (already sorted)
+  for (const change of event.contentChanges) {
+    const start = event.document.offsetAt(change.range.start);
     if (change.rangeLength > 0) {
-      console.log(`Deleting ${change.rangeLength} characters at offset ${startOffset}`);
-      ytext.delete(startOffset, change.rangeLength);
+      ytext.delete(start, change.rangeLength);
     }
-    
-    // Handle insertions
     if (change.text.length > 0) {
-      console.log(`Inserting "${change.text}" at offset ${startOffset}`);
-      ytext.insert(startOffset, change.text);
+      ytext.insert(start, change.text);
     }
-  });
-
-  console.log("Yjs document content after changes:", ytext.toString());
-};
-
-/**
- * Resets the global stream state
- */
-const resetGlobalStream = () => {
-  // Clean up socket
-  if (globalStream.socket && globalStream.socket.readyState === WebSocket.OPEN) {
-    globalStream.socket.close();
   }
-  globalStream.socket = null;
+}
 
-  // Clean up disposables
-  globalStream.disposables.forEach(disposable => disposable.dispose());
-  globalStream.disposables = [];
+/* ------------------------------ Y wiring ------------------------------- */
 
-  // Clean up Yjs document
-  if (globalStream.ydoc) {
-    globalStream.ydoc.destroy();
-    globalStream.ydoc = null;
+function resetDoc() {
+  teardownDoc();
+  state.ydoc = new Y.Doc();
+  state.ytext = state.ydoc.getText("monaco");
+
+  // Send Yjs deltas generated by local edits
+  const onYUpdate = (update: Uint8Array) => {
+    // Only forward if we’re not on an ignored file
+    if (state.currentIgnored) return;
+    if (state.currentFileId == null) return;
+    sendFrame(Code.encodeDelta(update, state.currentFileId!));
+  };
+  state.ydoc.on("update", onYUpdate);
+
+  // Track for teardown
+  state.disposables.push(
+    new vscode.Disposable(() => {
+      state.ydoc?.off("update", onYUpdate);
+    })
+  );
+}
+
+function teardownDoc() {
+  if (state.ydoc) {
+    try {
+      state.ydoc.destroy();
+    } catch {}
   }
+  state.ydoc = null;
+  state.ytext = null;
+}
 
-  globalStream.currentDocumentUri = null;
-  globalStream.isStreaming = false;
-  
-  console.log("Global stream reset");
-};
+/* ---------------------------- send helpers ----------------------------- */
 
-/**
- * Stops all streaming
- */
-export const stopAllStreams = () => {
-  resetGlobalStream();
-  console.log("All streams stopped");
-};
+function sendFrame(bytes: Uint8Array) {
+  const ws = state.socket;
+  if (!ws || !state.isOpen) {
+    // queue and try to flush later
+    state.sendQueue.push(bytes);
+    return;
+  }
+  ws.send(bytes);
+}
+
+function flushQueue() {
+  if (!state.socket || !state.isOpen) return;
+  // FIFO flush
+  for (const frame of state.sendQueue) state.socket.send(frame);
+  if (state.sendQueue.length) {
+    console.log(`[parakeet] flushed ${state.sendQueue.length} queued frame(s)`);
+  }
+  state.sendQueue = [];
+}
