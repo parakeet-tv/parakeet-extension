@@ -5,6 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --brand-bg: #0D1117;
+  --brand-teal: #1ABC9C;
+  --brand-yellow: #F1C40F;
+  
+  --brand-acceent-aqua: #00CED1;
+  --brand-accent-yellow: #FFD700;
+  --brand-gray: #BDC3C7;
+
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -12,7 +20,7 @@
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: #089DCC;
+  --primary: var(--brand-teal);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -46,7 +54,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: #3dcbf7;
+  --primary: #1ABC9C;
   --primary-foreground: oklch(0.21 0.006 285.885);
   --secondary: oklch(0.32 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);

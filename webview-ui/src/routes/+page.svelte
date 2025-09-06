@@ -14,12 +14,12 @@
 	import { ctx } from '$lib/ctx';
 	import { InfoIcon } from '@lucide/svelte';
 
-	let state: State = $state(getState());
+	let savedState: State = $state(getState());
 	let viewerCount = $state(0);
 
 	function handleTagsChange(tags: string[]) {
-		state.userTags = tags;
-		setState(state);
+		savedState.userTags = tags;
+		setState(savedState);
 	}
 
 	// Listen for messages from the extension
@@ -27,8 +27,8 @@
 		const messageHandler = (event: MessageEvent) => {
 			const message = event.data;
 			if (message.command === 'tagsGenerated') {
-				state.autoTags = message.tags;
-				setState(state);
+				savedState.autoTags = message.tags;
+				setState(savedState);
 			} else if (message.command === 'streamingStateChanged') {
 				isStreaming.set(message.isStreaming);
 				isConnected.set(message.isConnected);
@@ -66,10 +66,10 @@
 		type="password"
 		autocomplete="off"
 		autosave="stream-key"
-		value={state.streamKey}
+		value={savedState.streamKey}
 		oninput={(e: any) => {
-			state.streamKey = e.target.value;
-			setState(state);
+			savedState.streamKey = e.target.value;
+			setState(savedState);
 		}}
 	></Input>
 </div>
@@ -82,10 +82,10 @@
 		<Label class="mb-2">What to share:</Label>
 
 		<RadioGroup.Root
-			value={state.shareOption}
+			value={savedState.shareOption}
 			onValueChange={(value) => {
-				state.shareOption = value as State['shareOption'];
-				setState(state);
+				savedState.shareOption = value as State['shareOption'];
+				setState(savedState);
 			}}
 		>
 			<div class="flex items-center space-x-2">
@@ -153,10 +153,10 @@
 
 	<div class="flex flex-row items-center gap-2">
 		<Switch
-			bind:checked={state.saveVod}
+			bind:checked={savedState.saveVod}
 			onCheckedChange={(checked) => {
-				state.saveVod = checked;
-				setState(state);
+				savedState.saveVod = checked;
+				setState(savedState);
 			}}
 		/>
 		<Label
@@ -180,10 +180,10 @@
 		<Label class="mb-2">Stream title</Label>
 		<Textarea
 			placeholder="Enter stream title"
-			value={state.streamTitle}
+			value={savedState.streamTitle}
 			oninput={(e: any) => {
-				state.streamTitle = e.target.value;
-				setState(state);
+				savedState.streamTitle = e.target.value;
+				setState(savedState);
 			}}
 			class="w-full"
 		></Textarea>
@@ -206,8 +206,8 @@
 			</Tooltip.Provider></Label
 		>
 		<TagsInput
-			tags={state.userTags}
-			readOnlyTags={state.autoTags}
+			tags={savedState.userTags}
+			readOnlyTags={savedState.autoTags}
 			placeholder=""
 			maxTags={3}
 			on:change={(event) => handleTagsChange(event.detail)}
