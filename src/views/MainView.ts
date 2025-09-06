@@ -50,39 +50,40 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async _generateTagsForWebview(webview: vscode.Webview): Promise<void> {
+  private async _generateTagsForWebview(
+    webview: vscode.Webview
+  ): Promise<void> {
     try {
       const tags = await generateTagsFromRepo();
       webview.postMessage({
         command: "tagsGenerated",
-        tags: tags
+        tags: tags,
       });
     } catch (error) {
       console.error("Error generating tags:", error);
       webview.postMessage({
         command: "tagsGenerated",
-        tags: []
+        tags: [],
       });
     }
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
-    // Ensure when creating the WebviewPanel you use:
-    // enableScripts: true,
-    // localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, 'webview-ui', 'build')]
+    const buildUri = vscode.Uri.joinPath(
+      this._extensionUri,
+      "webview-ui",
+      "build"
+    );
+    const indexUri = vscode.Uri.joinPath(buildUri, "index.html");
 
-    const buildUri = vscode.Uri.joinPath(this._extensionUri, 'webview-ui', 'build');
-    const indexUri = vscode.Uri.joinPath(buildUri, 'index.html');
-
-    let html = readFileSync(indexUri.fsPath, 'utf8');
+    let html = readFileSync(indexUri.fsPath, "utf8");
     const nonce = getNonce();
 
-    console.log('Original HTML length:', html.length);
-    console.log('CSP Source:', webview.cspSource);
-
     const toWebviewUri = (p: string) => {
-      const clean = p.replace(/^\//, '');
-      return webview.asWebviewUri(vscode.Uri.joinPath(buildUri, ...clean.split('/'))).toString();
+      const clean = p.replace(/^\//, "");
+      return webview
+        .asWebviewUri(vscode.Uri.joinPath(buildUri, ...clean.split("/")))
+        .toString();
     };
 
     // 1) Inject CSP + fix routing BEFORE SvelteKit boots
@@ -102,48 +103,36 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
   ">
   <base href="./">`
     );
-  
+
     // 2) Rewrite asset URLs in attributes (src/href), including rel="modulepreload"
-    const ATTR_URL = /(src|href)=["'](?!https?:|data:|vscode-webview:)([^"']+)["']/g;
-    let attrMatches = 0;
+    const ATTR_URL =
+      /(src|href)=["'](?!https?:|data:|vscode-webview:)([^"']+)["']/g;
     html = html.replace(ATTR_URL, (m, attr, url) => {
-      console.log(`Found ${attr} URL: ${url}`);
-      if (/^(?:\.\/|\/|_app\/|assets\/|favicon|manifest\.webmanifest)/.test(url)) {
-        const rewritten = `${attr}="${toWebviewUri(url)}"`;
-        console.log(`Rewriting ${attr} URL: ${url} -> ${rewritten}`);
-        attrMatches++;
-        return rewritten;
+      if (
+        /^(?:\.\/|\/|_app\/|assets\/|favicon|manifest\.webmanifest)/.test(url)
+      ) {
+        return `${attr}="${toWebviewUri(url)}"`;
       }
       return m;
     });
-    console.log(`Rewrote ${attrMatches} attribute URLs`);
-  
+
     // 3) Rewrite dynamic import("./_app/...") inside inline scripts
     //    Your provided HTML matches this pattern exactly.
-    let importMatches = 0;
     html = html.replace(
       /import\(\s*["'](\.\/_app\/[^"']+)["']\s*\)/g,
-      (_m, rel) => {
-        const rewritten = `import("${toWebviewUri(rel)}")`;
-        console.log(`Rewriting import: ${rel} -> ${rewritten}`);
-        importMatches++;
-        return rewritten;
-      }
+      (_m, rel) => `import("${toWebviewUri(rel)}")`
     );
-    console.log(`Rewrote ${importMatches} dynamic imports`);
-  
+
     // 4) Nonce every <script> so CSP passes (leave existing nonce if present)
-    html = html.replace(/<script(?![^>]*\bnonce=)([^>]*)>/g, `<script nonce="${nonce}"$1>`);
-  
+    html = html.replace(
+      /<script(?![^>]*\bnonce=)([^>]*)>/g,
+      `<script nonce="${nonce}"$1>`
+    );
+
     // 5) Override SvelteKit base path dynamically (works with any build-specific variable name)
-    let sveltekitMatches = 0;
     html = html.replace(
       /(__sveltekit_\w+)\s*=\s*\{\s*base:\s*new URL\("\.",\s*location\)\.pathname\.slice\(0,\s*-1\)\s*\};/g,
-      (match, varName) => {
-        console.log(`Found SvelteKit base config: ${varName}`);
-        sveltekitMatches++;
-        return `${varName} = { base: "" };`;
-      }
+      (match, varName) => `${varName} = { base: "" };`
     );
 
     // 7) Expose VS Code API
@@ -151,8 +140,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
       /<\/body>\s*<\/html>\s*$/i,
       `<script nonce="${nonce}">window.vscode = acquireVsCodeApi();</script></body></html>`
     );
-  
+
     return html;
   }
-  
 }
