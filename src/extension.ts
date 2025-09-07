@@ -2,13 +2,45 @@ import * as vscode from "vscode";
 import { MainViewProvider } from "./views/MainView";
 import { ChatViewProvider } from "./views/ChatView";
 import { addStateChangeCallback } from "./stream";
+import { syncAuthState } from "./utilities/state";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  console.log("Parakeet extension activated");
-  const provider = new MainViewProvider(context.extensionUri);
-  const chatProvider = new ChatViewProvider(context.extensionUri);
+  const handler: vscode.UriHandler = {
+    handleUri(uri) {
+      if (uri.path === "/auth" && uri.scheme === "vscode" && uri.authority === "parakeet.tv.parakeet-tv") {
+        const params = new URLSearchParams(uri.query);
+        const token = params.get("token");
+        const userId = params.get("userId");
+        const username = params.get("username");
+        const imageUrl = params.get("imageUrl");
+
+        if (token && userId && username && imageUrl) {
+          context.secrets.store("parakeet-token", token);
+          context.secrets.store("parakeet-userId", userId);
+          context.secrets.store("parakeet-username", username);
+          context.secrets.store("parakeet-imageUrl", imageUrl);
+          
+          // Sync auth state after storing new credentials
+          syncAuthState(context);
+        }
+      }
+    },
+  };
+
+  context.subscriptions.push(vscode.window.registerUriHandler(handler));
+
+  const provider = new MainViewProvider(
+    context.extensionUri,
+    context.extensionMode,
+    context
+  );
+  const chatProvider = new ChatViewProvider(
+    context.extensionUri,
+    context.extensionMode,
+    context
+  );
 
   console.log(
     `workspace: ${vscode.workspace.workspaceFolders
@@ -66,6 +98,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(statusBarCommand);
   context.subscriptions.push(statusBarItem);
+
+  // Initial auth state sync on activation
+  syncAuthState(context);
 }
 
 // This method is called when your extension is deactivated

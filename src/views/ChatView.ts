@@ -1,12 +1,17 @@
 import * as vscode from "vscode";
-import { getNonce, getUri, generateTagsFromRepo } from "../utilities/utils";
-import { readFileSync } from "fs";
+import { generateTagsFromRepo } from "../utilities/utils";
+import { processHtmlForWebview } from "../utilities/htmlUtils";
 import {
   startStream,
   stopAllStreams,
   addStateChangeCallback,
   getStreamingState,
 } from "../stream";
+import { 
+  registerWebviewForAuthUpdates, 
+  unregisterWebviewForAuthUpdates, 
+  syncAuthState 
+} from "../utilities/state";
 
 /**
  * ChatViewProvider manages the chat webview in the bottom panel
@@ -16,7 +21,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private _view?: vscode.WebviewView;
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _extensionMode: vscode.ExtensionMode,
+    private readonly _context: vscode.ExtensionContext
+  ) {}
 
   /**
    * Reveal the chat view panel
@@ -43,6 +52,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+
+    // Register webview for auth updates
+    registerWebviewForAuthUpdates(webviewView.webview);
+
+    // Initial auth state sync
+    syncAuthState(this._context);
 
     // Set up streaming state callback
     addStateChangeCallback(({ isStreaming, isConnected, viewerCount }) => {
@@ -79,7 +94,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           this._generateTagsForWebview(webviewView.webview);
           return;
         case "startStream":
-          startStream();
+          startStream(this._context);
           return;
         case "stopStream":
           stopAllStreams();
@@ -92,7 +107,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             isConnected: currentState.isConnected,
           });
           return;
+        case "getAuthState":
+          syncAuthState(this._context);
+          return;
       }
+    });
+
+    // Clean up webview registration when disposed
+    webviewView.onDidDispose(() => {
+      unregisterWebviewForAuthUpdates(webviewView.webview);
     });
   }
 
@@ -115,88 +138,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
-    const buildUri = vscode.Uri.joinPath(
-      this._extensionUri,
-      "webview-ui",
-      "build"
-    );
-    const indexUri = vscode.Uri.joinPath(buildUri, "index.html");
-
-    let html = readFileSync(indexUri.fsPath, "utf8");
-    const nonce = getNonce();
-
-    const toWebviewUri = (p: string) => {
-      const clean = p.replace(/^\//, "");
-      return webview
-        .asWebviewUri(vscode.Uri.joinPath(buildUri, ...clean.split("/")))
-        .toString();
-    };
-
-    // 1) Inject CSP + fix routing BEFORE SvelteKit boots
-    html = html.replace(
-      /<head([^>]*)>/i,
-      `<head$1>
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'none';
-    img-src ${webview.cspSource} data: https://*.parakeet.tv https://parakeet.tv;
-    font-src ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv;
-    style-src ${webview.cspSource} 'unsafe-inline' https://*.parakeet.tv https://parakeet.tv;
-    script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-eval' https://*.parakeet.tv https://parakeet.tv;
-    script-src-elem 'nonce-${nonce}' ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv;
-    connect-src ${webview.cspSource} https: https://*.parakeet.tv https://parakeet.tv;
-    worker-src ${webview.cspSource};
-    form-action 'none';
-  ">
-  <base href="./">`
-    );
-
-    // 2) Rewrite asset URLs in attributes (src/href), including rel="modulepreload"
-    const ATTR_URL =
-      /(src|href)=["'](?!https?:|data:|vscode-webview:)([^"']+)["']/g;
-    html = html.replace(ATTR_URL, (m, attr, url) => {
-      if (
-        /^(?:\.\/|\/|_app\/|assets\/|favicon|manifest\.webmanifest)/.test(url)
-      ) {
-        return `${attr}="${toWebviewUri(url)}"`;
-      }
-      return m;
+    return processHtmlForWebview(webview, this._extensionUri, {
+      isChatMode: true,
+      extensionMode: this._extensionMode,
     });
-
-    // 3) Rewrite dynamic import("./_app/...") inside inline scripts
-    //    Your provided HTML matches this pattern exactly.
-    html = html.replace(
-      /import\(\s*["'](\.\/_app\/[^"']+)["']\s*\)/g,
-      (_m, rel) => `import("${toWebviewUri(rel)}")`
-    );
-
-    // 4) Nonce every <script> so CSP passes (leave existing nonce if present)
-    html = html.replace(
-      /<script(?![^>]*\bnonce=)([^>]*)>/g,
-      `<script nonce="${nonce}"$1>`
-    );
-
-    // 5) Override SvelteKit base path dynamically (works with any build-specific variable name)
-    html = html.replace(
-      /(__sveltekit_\w+)\s*=\s*\{\s*base:\s*new URL\("\.",\s*location\)\.pathname\.slice\(0,\s*-1\)\s*\};/g,
-      (match, varName) => `${varName} = { base: "" };`
-    );
-
-    // 6) Add chat mode indicator for SvelteKit app
-    html = html.replace(
-      /<head([^>]*)>/i,
-      `<head$1>
-<script nonce="${nonce}">
-  // Set chat mode for SvelteKit app before it loads
-  window.__PARAKEET_CHAT_MODE__ = true;
-</script>`
-    );
-
-    // 7) Expose VS Code API
-    html = html.replace(
-      /<\/body>\s*<\/html>\s*$/i,
-      `<script nonce="${nonce}">window.vscode = acquireVsCodeApi();</script></body></html>`
-    );
-
-    return html;
   }
 }

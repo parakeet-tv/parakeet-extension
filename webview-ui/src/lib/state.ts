@@ -1,6 +1,6 @@
 import { get, writable } from 'svelte/store';
 import z from 'zod';
-import { ctx } from './ctx';
+import { appCtx } from './ctx';
 
 const stateSchema = z.object({
 	streamKey: z.string().default(''),
@@ -35,7 +35,7 @@ export const getState = () => {
 };
 
 const getInternalState = () => {
-	if (ctx === 'extension') {
+	if (appCtx === 'extension') {
 		return vscode.getState();
 	}
 
@@ -48,7 +48,7 @@ const getInternalState = () => {
 }
 
 const setInternalState = (state: State) => {
-	if (ctx === 'extension') {
+	if (appCtx === 'extension') {
 		vscode.setState(state);
 	} else {
 		localStorage.setItem('state', JSON.stringify(state));

@@ -2,10 +2,11 @@
 // for information about these interfaces
 
 import { WebviewApi } from '@types/vscode-webview';
+import { ExtensionMode } from './lib/types';
 
 declare global {
 	namespace App {
-		// interface Error {}	
+		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
 		// interface PageState {}
@@ -13,6 +14,7 @@ declare global {
 	}
 	var vscode: WebviewApi<any>;
 	var __PARAKEET_CHAT_MODE__: boolean | undefined;
+	var __PARAKEET_EXTENSION_MODE__: ExtensionMode | undefined;
 }
 
 export {};

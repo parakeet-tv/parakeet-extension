@@ -11,7 +11,7 @@
 	import { Switch } from '$lib/components/ui/switch/index';
 	import * as Tooltip from '$lib/components/ui/tooltip/index';
 	import { TagsInput } from '$lib/components/ui/tags-input/index';
-	import { ctx } from '$lib/ctx';
+	import { appCtx } from '$lib/ctx';
 	import { InfoIcon } from '@lucide/svelte';
 
 	let savedState: State = $state(getState());
@@ -41,7 +41,7 @@
 	});
 
 	onMount(() => {
-		if (ctx === 'extension') {
+		if (appCtx === 'extension') {
 			vscode.postMessage({ command: 'generateTags' });
 			vscode.postMessage({ command: 'getStreamingState' });
 		}
@@ -49,30 +49,14 @@
 </script>
 
 <a
-	class="mb-4 flex items-center gap-2 text-center font-mono"
+	class="mb-4 flex items-center justify-between gap-2 text-center font-mono"
 	href="https://parakeet.tv"
 	target="_blank"
 >
-	<img src={favicon} alt="Parakeet.tv" class="h-6 w-6" /> Parakeet.tv
+	<div class="flex items-center gap-2">
+		<img src={favicon} alt="Parakeet.tv" class="h-6 w-6" /> Parakeet.tv
+	</div>
 </a>
-
-
-
-<!-- Stream Key Section -->
-<div class="mb-6">
-	<h2 class="mb-2 text-lg font-semibold">Stream Key</h2>
-	<Input
-		placeholder="Enter your stream key"
-		type="password"
-		autocomplete="off"
-		autosave="stream-key"
-		value={savedState.streamKey}
-		oninput={(e: any) => {
-			savedState.streamKey = e.target.value;
-			setState(savedState);
-		}}
-	></Input>
-</div>
 
 <!-- Stream Settings Section -->
 <div class="mb-6 flex flex-col gap-4">
@@ -214,7 +198,7 @@
 			className="w-full"
 		/>
 	</div>
-	<div class="flex gap-2 flex-col">
+	<div class="flex flex-col gap-2">
 		<Button
 			onclick={() => {
 				if ($isStreaming) {
@@ -223,14 +207,14 @@
 					vscode.postMessage({ command: 'startStream' });
 				}
 			}}
-			variant={$isStreaming ? "outline" : "default"}
+			variant={$isStreaming ? 'outline' : 'default'}
 			class="flex-1"
 		>
 			{$isStreaming ? 'Stop Stream' : 'Start Stream'}
 		</Button>
 		{#if $isStreaming}
-			<div class="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 mb-2">
-				<div class="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+			<div class="mb-2 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+				<div class="h-2 w-2 animate-ping rounded-full bg-green-500"></div>
 				Now LIVE on Parakeet.tv
 				<br />
 				Viewers: {viewerCount}

@@ -14,7 +14,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onUri"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -92,7 +93,8 @@
     "vscode.git"
   ],
   "dependencies": {
-		"parakeet-proto": "git+ssh://git@github.com/benank/parakeet-proto.git#v0.7.0",
+    "jose": "^6.1.0",
+    "parakeet-proto": "git+ssh://git@github.com/benank/parakeet-proto.git#v0.7.0",
     "partysocket": "^1.1.5",
     "yjs": "^13.6.27"
   }

@@ -105,14 +105,14 @@ function notifyStateChange() {
  * - binds VS Code events
  * - sends HELLO and initial snapshot (if file not gitignored)
  */
-export async function startStream() {
+export async function startStream(context?: vscode.ExtensionContext) {
   if (state.isStreaming) {
     console.log("[parakeet] stream already active");
     return;
   }
   console.log("[parakeet] starting stream…");
 
-  initSocket();
+  await initSocket(context);
 
   // Bind global VS Code listeners
   const sub1 = vscode.window.onDidChangeActiveTextEditor(
@@ -165,13 +165,21 @@ export function stopAllStreams() {
 
 /* --------------------------- socket + routing --------------------------- */
 
-function initSocket() {
+async function initSocket(context?: vscode.ExtensionContext) {
   const host = "localhost:8787"; // TODO: make configurable
   const protocol = "ws";
   const room = "benank";
   const party = "parakeet-server";
 
-  const ws = new Partysocket({ host, protocol, party, room });
+  let query: { token?: string } = {};
+  if (context) {
+    const token = await context.secrets.get("parakeet-token");
+    if (token) {
+      query.token = token;
+    }
+  }
+
+  const ws = new Partysocket({ host, protocol, party, room, query });
   ws.binaryType = "arraybuffer";
   state.socket = ws;
   state.isOpen = false;
