@@ -97,5 +97,8 @@
     "parakeet-proto": "git+ssh://git@github.com/parakeet-tv/parakeet-proto.git#v0.8.0",
     "partysocket": "^1.1.5",
     "yjs": "^13.6.27"
-  }
+  },
+	"optionalDependencies": {
+		"@rollup/rollup-linux-x64-gnu": "^4.50.1"
+	}
 }
