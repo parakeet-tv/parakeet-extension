@@ -37,6 +37,10 @@ interface GlobalStreamState {
   /** Callbacks to notify webviews of state changes */
   onStateChangeCallbacks: ((state: StreamingState) => void)[];
   viewerCount: number;
+  /** Current auth token for socket connection */
+  currentToken: string | null;
+  /** Extension context reference for auth checking */
+  context: vscode.ExtensionContext | null;
 }
 const state: GlobalStreamState = {
   socket: null,
@@ -53,6 +57,8 @@ const state: GlobalStreamState = {
   highlightTimer: null,
   onStateChangeCallbacks: [],
   viewerCount: 0,
+  currentToken: null,
+  context: null,
 };
 
 export type StreamingState = {
@@ -100,10 +106,39 @@ function notifyStateChange() {
 }
 
 /**
+ * Initialize socket connection when auth token is available.
+ * This should be called whenever we have a valid token.
+ */
+export async function initSocketConnection(context: vscode.ExtensionContext) {
+  state.context = context;
+  const token = await context.secrets.get("parakeet-token");
+  
+  if (!token) {
+    console.log("[parakeet] no auth token available");
+    return;
+  }
+
+  // If we already have a socket with the same token, no need to reconnect
+  if (state.socket && state.currentToken === token) {
+    console.log("[parakeet] socket already connected with current token");
+    return;
+  }
+
+  // Clean up existing socket if token changed
+  if (state.socket && state.currentToken !== token) {
+    console.log("[parakeet] token changed, reconnecting socket");
+    cleanupSocket();
+  }
+
+  state.currentToken = token;
+  await initSocket(context);
+}
+
+/**
  * Start streaming after the user triggers "startStream".
- * - opens socket
+ * - requires socket to be already connected
  * - binds VS Code events
- * - sends HELLO and initial snapshot (if file not gitignored)
+ * - sends initial snapshot (if file not gitignored)
  */
 export async function startStream(context?: vscode.ExtensionContext) {
   if (state.isStreaming) {
@@ -112,7 +147,15 @@ export async function startStream(context?: vscode.ExtensionContext) {
   }
   console.log("[parakeet] starting stream…");
 
-  await initSocket(context);
+  // Ensure socket is connected first
+  if (context) {
+    await initSocketConnection(context);
+  }
+
+  if (!state.socket || !state.isOpen) {
+    console.error("[parakeet] cannot start streaming without socket connection");
+    return;
+  }
 
   // Bind global VS Code listeners
   const sub1 = vscode.window.onDidChangeActiveTextEditor(
@@ -134,15 +177,10 @@ export async function startStream(context?: vscode.ExtensionContext) {
   console.log("[parakeet] stream started");
 }
 
-/** Stop everything and clean up. */
-export function stopAllStreams() {
+/** Stop streaming but keep socket connected. */
+export function stopStream() {
   console.log("[parakeet] stopping stream…");
-  // socket
-  try {
-    state.socket?.close();
-  } catch {}
-  state.socket = null;
-
+  
   // Y.Doc
   if (state.ydoc) {
     try {
@@ -161,6 +199,34 @@ export function stopAllStreams() {
   state.isStreaming = false;
   notifyStateChange();
   console.log("[parakeet] stream stopped");
+}
+
+/** Stop everything and clean up socket too. */
+export function stopAllStreams() {
+  console.log("[parakeet] stopping all streams and socket…");
+  stopStream();
+  cleanupSocket();
+}
+
+/** Clean up socket connection */
+function cleanupSocket() {
+  try {
+    state.socket?.close();
+  } catch {}
+  state.socket = null;
+  state.currentToken = null;
+  state.isOpen = false;
+  state.sendQueue = [];
+  state.viewerCount = 0;
+  notifyStateChange();
+}
+
+/**
+ * Handle auth token changes - should be called when new token is detected
+ */
+export async function handleAuthTokenChange(context: vscode.ExtensionContext) {
+  console.log("[parakeet] auth token changed, updating socket connection");
+  await initSocketConnection(context);
 }
 
 /* --------------------------- socket + routing --------------------------- */

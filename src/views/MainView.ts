@@ -3,6 +3,7 @@ import { generateTagsFromRepo } from "../utilities/utils";
 import { processHtmlForWebview } from "../utilities/htmlUtils";
 import {
   startStream,
+  stopStream,
   stopAllStreams,
   setStateChangeCallback,
   getStreamingState,
@@ -85,7 +86,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           startStream(this._context);
           return;
         case "stopStream":
-          stopAllStreams();
+          stopStream();
           return;
         case "getStreamingState":
           const currentState = getStreamingState();

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { MainViewProvider } from "./views/MainView";
 import { ChatViewProvider } from "./views/ChatView";
-import { addStateChangeCallback } from "./stream";
+import { addStateChangeCallback, handleAuthTokenChange, initSocketConnection } from "./stream";
 import { syncAuthState } from "./utilities/state";
 
 // This method is called when your extension is activated
@@ -24,6 +24,8 @@ export function activate(context: vscode.ExtensionContext) {
           
           // Sync auth state after storing new credentials
           syncAuthState(context);
+          // Initialize socket with new token
+          handleAuthTokenChange(context);
         }
       }
     },
@@ -101,6 +103,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initial auth state sync on activation
   syncAuthState(context);
+  
+  // Initialize socket connection if we have a valid token
+  initSocketConnection(context);
 }
 
 // This method is called when your extension is deactivated
