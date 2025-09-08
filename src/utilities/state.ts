@@ -1,31 +1,4 @@
 import * as vscode from "vscode";
-import { decodeJwt } from "jose";
-
-/**
- * Check if JWT token is expired using jose library
- * @param token JWT token string
- * @returns true if expired or invalid, false if valid
- */
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = decodeJwt(token);
-    
-    // Check if exp claim exists
-    if (!payload.exp) {
-      console.warn('JWT token does not have exp claim');
-      return true;
-    }
-    
-    // Check if token is expired (exp is in seconds, Date.now() is in milliseconds)
-    const expirationTime = payload.exp * 1000;
-    const currentTime = Date.now();
-    
-    return expirationTime <= currentTime;
-  } catch (error) {
-    console.error('Error decoding JWT with jose:', error);
-    return true; // Treat invalid tokens as expired
-  }
-}
 
 // Store webview references for auth state updates
 let registeredWebviews: vscode.Webview[] = [];
@@ -80,24 +53,6 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
     // Check if all auth info is present
     if (!token || !userId || !username || !imageUrl) {
       // Clear any partial auth data and set as unauthenticated
-      await context.secrets.delete("parakeet-token");
-      await context.secrets.delete("parakeet-userId");
-      await context.secrets.delete("parakeet-username");
-      await context.secrets.delete("parakeet-imageUrl");
-      
-      const authState = {
-        authenticated: false,
-        user: null
-      };
-      
-      postAuthStateToWebviews(authState);
-      return authState;
-    }
-    
-    // Check if token is expired
-    if (isTokenExpired(token)) {
-      console.log("token expired");
-      // Clear all auth data if token is expired
       await context.secrets.delete("parakeet-token");
       await context.secrets.delete("parakeet-userId");
       await context.secrets.delete("parakeet-username");
