@@ -11,6 +11,7 @@ import {
   unpackMsgpack,
   Control,
   Code,
+  Chat,
   Hash,
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
@@ -36,6 +37,8 @@ interface GlobalStreamState {
   highlightTimer: NodeJS.Timeout | null;
   /** Callbacks to notify webviews of state changes */
   onStateChangeCallbacks: ((state: StreamingState) => void)[];
+  /** Callbacks to notify webviews of chat messages */
+  chatCallbacks: ((message: any) => void)[];
   viewerCount: number;
   /** Current auth token for socket connection */
   currentToken: string | null;
@@ -56,6 +59,7 @@ const state: GlobalStreamState = {
   isOpen: false,
   highlightTimer: null,
   onStateChangeCallbacks: [],
+  chatCallbacks: [],
   viewerCount: 0,
   currentToken: null,
   context: null,
@@ -95,6 +99,40 @@ export function getStreamingState(): StreamingState {
     isConnected: state.isOpen,
     viewerCount: state.viewerCount,
   };
+}
+
+/**
+ * Add callback to receive chat messages
+ */
+export function addChatCallback(callback: (message: any) => void) {
+  state.chatCallbacks.push(callback);
+}
+
+/**
+ * Remove chat callback
+ */
+export function removeChatCallback(callback: (message: any) => void) {
+  const index = state.chatCallbacks.indexOf(callback);
+  if (index > -1) {
+    state.chatCallbacks.splice(index, 1);
+  }
+}
+
+/**
+ * Send a chat message through the stream
+ */
+export function sendChatMessage(message: any) {
+  if (!state.socket || !state.isOpen) {
+    console.warn("Cannot send chat message: socket not connected");
+    return;
+  }
+  
+  try {
+    const chatFrame = Chat.chat.user(message);
+    state.socket.send(chatFrame);
+  } catch (error) {
+    console.error("Error sending chat message:", error);
+  }
 }
 
 /**
@@ -289,9 +327,17 @@ async function initSocket(context?: vscode.ExtensionContext) {
         }
         return;
       case ChannelId.CHAT: {
-        // log-only for now
         const chat = unpackMsgpack<any>(payloadView);
         console.log("[parakeet] chat:", chat);
+        
+        // Forward chat message to all registered chat callbacks
+        state.chatCallbacks.forEach((callback) => {
+          try {
+            callback(chat);
+          } catch (error) {
+            console.error("Error forwarding chat message to callback:", error);
+          }
+        });
         return;
       }
       case ChannelId.CODE:

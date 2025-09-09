@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { type ChatUserMsg } from 'parakeet-proto';
 
 /**
  * Runtime streaming state (not persisted)
@@ -23,3 +24,13 @@ export const user = writable<{
 	username: string;
 	imageUrl: string;
 } | null>(null);
+
+/**
+ * Chat messages (ephemeral state, not persisted)
+ */
+export const chatMessages = writable<ChatUserMsg[]>([]);
+
+/**
+ * Current message input value (ephemeral state)
+ */
+export const messageInput = writable<string>('');

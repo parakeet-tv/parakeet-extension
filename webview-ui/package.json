@@ -53,6 +53,7 @@
 	},
 	"dependencies": {
 		"@vscode/codicons": "^0.0.40",
+		"parakeet-proto": "git+ssh://git@github.com/parakeet-tv/parakeet-proto.git#v0.8.0",
 		"zod": "^4.1.5"
 	}
 }

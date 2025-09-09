@@ -6,6 +6,9 @@ import {
   stopAllStreams,
   addStateChangeCallback,
   getStreamingState,
+  addChatCallback,
+  removeChatCallback,
+  sendChatMessage,
 } from "../stream";
 import { 
   registerWebviewForAuthUpdates, 
@@ -20,6 +23,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "parakeet.chatView";
 
   private _view?: vscode.WebviewView;
+  private _chatCallback?: (message: any) => void;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -58,6 +62,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // Initial auth state sync
     syncAuthState(this._context);
+
+    // Set up chat message callback
+    this._chatCallback = (message: any) => {
+      webviewView.webview.postMessage({
+        command: "chatMessage",
+        message: message,
+      });
+    };
+    addChatCallback(this._chatCallback);
 
     // Set up streaming state callback
     addStateChangeCallback(({ isStreaming, isConnected, viewerCount }) => {
@@ -110,12 +123,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         case "getAuthState":
           syncAuthState(this._context);
           return;
+        case "sendChatMessage":
+          if (message.message) {
+            sendChatMessage(message.message);
+          }
+          return;
       }
     });
 
     // Clean up webview registration when disposed
     webviewView.onDidDispose(() => {
       unregisterWebviewForAuthUpdates(webviewView.webview);
+      if (this._chatCallback) {
+        removeChatCallback(this._chatCallback);
+      }
     });
   }
 

@@ -60,7 +60,7 @@
 {:else}
 	<!-- Add vs code theme to web to emulate the extension -->
 	<VscodeTheme>
-		<div class="h-screen w-80 max-w-80 overflow-auto bg-[var(--vscode-sideBar-background)] p-2">
+		<div class="h-screen w-80 max-w-80 overflow-auto bg-[var(--vscode-sideBar-background)]">
 			{@render children?.()}
 		</div>
 	</VscodeTheme>
