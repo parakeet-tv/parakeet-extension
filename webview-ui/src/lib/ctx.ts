@@ -12,4 +12,4 @@ export const isDev = extensionMode === ExtensionMode.Development;
 export const isProd = extensionMode === ExtensionMode.Production;
 export const isTest = extensionMode === ExtensionMode.Test;
 
-export const authUrl = isDev ? 'http://localhost:5173/extension/auth' : 'https://parakeet.tv/extension/auth';
+export const baseUrl = isDev ? 'http://localhost:5173' : 'https://parakeet.tv';

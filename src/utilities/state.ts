@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { stopAllStreams } from "../stream";
+import { validateStreamKey } from "./api";
 
 // Store webview references for auth state updates
 let registeredWebviews: vscode.Webview[] = [];
@@ -16,7 +18,7 @@ export function registerWebviewForAuthUpdates(webview: vscode.Webview) {
  * @param webview VSCode webview instance
  */
 export function unregisterWebviewForAuthUpdates(webview: vscode.Webview) {
-  registeredWebviews = registeredWebviews.filter(w => w !== webview);
+  registeredWebviews = registeredWebviews.filter((w) => w !== webview);
 }
 
 /**
@@ -27,17 +29,24 @@ function postAuthStateToWebviews(authState: any) {
   const message = {
     command: "authStateChanged",
     authenticated: authState.authenticated,
-    user: authState.user
+    user: authState.user,
   };
-  
-  registeredWebviews.forEach(webview => {
+
+  registeredWebviews.forEach((webview) => {
     try {
       webview.postMessage(message);
     } catch (error) {
-      console.error('Error posting auth state to webview:', error);
+      console.error("Error posting auth state to webview:", error);
     }
   });
 }
+
+export const clearAuthState = async (context: vscode.ExtensionContext) => {
+  await context.secrets.delete("parakeet-token");
+  await context.secrets.delete("parakeet-userId");
+  await context.secrets.delete("parakeet-username");
+  await context.secrets.delete("parakeet-imageUrl");
+};
 
 /**
  * Sync authentication state - validate token and update webviews
@@ -49,45 +58,52 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
     const userId = await context.secrets.get("parakeet-userId");
     const username = await context.secrets.get("parakeet-username");
     const imageUrl = await context.secrets.get("parakeet-imageUrl");
-    
+
+    const isValid = await validateStreamKey(token);
+
     // Check if all auth info is present
-    if (!token || !userId || !username || !imageUrl) {
+    if (!token || !userId || !username || !imageUrl || !isValid) {
       // Clear any partial auth data and set as unauthenticated
-      await context.secrets.delete("parakeet-token");
-      await context.secrets.delete("parakeet-userId");
-      await context.secrets.delete("parakeet-username");
-      await context.secrets.delete("parakeet-imageUrl");
-      
+      await clearAuthState(context);
+
       const authState = {
         authenticated: false,
-        user: null
+        user: null,
       };
-      
+
       postAuthStateToWebviews(authState);
       return authState;
     }
-    
+
     const authState = {
       authenticated: true,
       user: {
         id: userId,
         username: username,
-        imageUrl: imageUrl
-      }
+        imageUrl: imageUrl,
+      },
     };
-    
+
     postAuthStateToWebviews(authState);
     return authState;
-    
   } catch (error) {
-    console.error('Error syncing auth state:', error);
-    
+    console.error("Error syncing auth state:", error);
+
     const authState = {
       authenticated: false,
-      user: null
+      user: null,
     };
-    
+
     postAuthStateToWebviews(authState);
     return authState;
   }
+};
+
+export const logOut = async (context: vscode.ExtensionContext) => {
+  // Stop all streams and disconnect socket before clearing auth data
+  stopAllStreams();
+
+  await clearAuthState(context);
+
+  syncAuthState(context);
 };

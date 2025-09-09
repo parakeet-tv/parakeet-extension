@@ -2,7 +2,7 @@
 	import { authenticated, user } from '$lib/stores';
 	import { Button } from '$lib/components/ui/button';
 	import favicon from '$lib/assets/favicon.svg';
-	import { authUrl } from '$lib/ctx';
+	import { baseUrl, isChatMode } from '$lib/ctx';
 
 	let { children } = $props();
 </script>
@@ -19,8 +19,10 @@
 				>Parakeet.tv</a
 			> to continue.
 		</div>
-		<Button class="w-full max-w-60 mt-8 text-primary-foreground!" href={authUrl} target="_blank">
-			Log in
-		</Button>
+		{#if !isChatMode}
+			<Button class="text-primary-foreground! mt-8 w-full max-w-60" href={`${baseUrl}/go-live`} target="_blank">
+				Log in
+			</Button>
+		{/if}
 	</div>
 {/if}

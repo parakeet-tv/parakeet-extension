@@ -7,6 +7,7 @@
 	import { onMount } from 'svelte';
 	import { authenticated, user } from '$lib/stores';
 	import ExtensionAuthGate from '$lib/components/ExtensionAuthGate.svelte';
+	import { initTestStoresForWeb } from '$lib/web';
 
 	let { children } = $props();
 
@@ -19,6 +20,10 @@
 		// Request initial auth state for extension context
 		if (appCtx === 'extension') {
 			vscode.postMessage({ command: 'getAuthState' });
+		}
+
+		if (appCtx === 'web') {
+			initTestStoresForWeb();
 		}
 	});
 

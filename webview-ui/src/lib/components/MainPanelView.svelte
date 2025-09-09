@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { stateStore, getState, setState, type State } from '$lib/state';
-	import { isStreaming, isConnected } from '$lib/stores';
+	import { isStreaming, isConnected, user, authenticated } from '$lib/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Label } from '$lib/components/ui/label/index.js';
 	import * as RadioGroup from '$lib/components/ui/radio-group/index.js';
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
-	import Input from '$lib/components/ui/input/input.svelte';
 	import { Switch } from '$lib/components/ui/switch/index';
 	import * as Tooltip from '$lib/components/ui/tooltip/index';
 	import { TagsInput } from '$lib/components/ui/tags-input/index';
-	import { appCtx } from '$lib/ctx';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
+	import { appCtx, baseUrl } from '$lib/ctx';
 	import { InfoIcon } from '@lucide/svelte';
 
 	let savedState: State = $state(getState());
@@ -20,6 +20,17 @@
 	function handleTagsChange(tags: string[]) {
 		savedState.userTags = tags;
 		setState(savedState);
+	}
+
+	/**
+	 * Logs out the current user
+	 */
+	function logOut() {
+		if (appCtx === 'extension') {
+			vscode.postMessage({ command: 'logOut' });
+		}
+		user.set(null);
+		authenticated.set(false);
 	}
 
 	// Listen for messages from the extension
@@ -48,15 +59,44 @@
 	});
 </script>
 
-<a
-	class="mb-4 flex items-center justify-between gap-2 text-center font-mono"
-	href="https://parakeet.tv"
-	target="_blank"
->
-	<div class="flex items-center gap-2">
-		<img src={favicon} alt="Parakeet.tv" class="h-6 w-6" /> Parakeet.tv
-	</div>
-</a>
+<div class="mb-4 flex flex-row items-center justify-between gap-2">
+	<a
+		class="flex w-fit items-center justify-between gap-2 text-center font-semibold text-[var(--brand-accent-yellow)] hover:underline"
+		href="https://parakeet.tv"
+		target="_blank"
+	>
+		<div class="flex items-center gap-2">
+			<img src={favicon} alt="Parakeet.tv" class="h-6 w-6" /> Parakeet.tv
+		</div>
+	</a>
+	{#if $user}
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						class="cursor-pointer rounded-full transition-opacity hover:opacity-80"
+						aria-label="User menu"
+					>
+						<img src={$user.imageUrl} alt="User" class="size-8 rounded-full" />
+					</button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end" class="w-52">
+				<DropdownMenu.Label class="text-sm font-medium line-clamp-1">
+					{$user.username}
+				</DropdownMenu.Label>
+				<DropdownMenu.Separator />
+				<a href={`${baseUrl}/@${$user.username}`} target="_blank">
+					<DropdownMenu.Item>Open Stream Page</DropdownMenu.Item></a
+				>
+				<DropdownMenu.Item onclick={logOut}>Log Out</DropdownMenu.Item>
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	{:else}
+		<div class="size-8 rounded-full bg-white/20"></div>
+	{/if}
+</div>
 
 <!-- Stream Settings Section -->
 <div class="mb-6 flex flex-col gap-4">

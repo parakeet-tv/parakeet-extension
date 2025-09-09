@@ -11,7 +11,8 @@ import {
 import { 
   registerWebviewForAuthUpdates, 
   unregisterWebviewForAuthUpdates, 
-  syncAuthState 
+  syncAuthState, 
+  logOut
 } from "../utilities/state";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
@@ -98,6 +99,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "getAuthState":
           syncAuthState(this._context);
+          return;
+        case "logOut":
+          logOut(this._context);
           return;
       }
     });
