@@ -2,7 +2,7 @@ import { get, writable } from 'svelte/store';
 import z from 'zod';
 import { appCtx } from './ctx';
 
-const stateSchema = z.object({
+const settingsStateSchema = z.object({
 	streamKey: z.string().default(''),
 	shareOption: z.enum(['current-file', 'directory', 'everything']).default('current-file'),
 	streamTitle: z.string().default(''),
@@ -12,29 +12,29 @@ const stateSchema = z.object({
 	autoTags: z.array(z.string()).default([])
 });
 
-export type State = z.infer<typeof stateSchema>;
+export type SettingsState = z.infer<typeof settingsStateSchema>;
 
-export const stateStore = writable<State>();
+export const stateStore = writable<SettingsState>();
 
-export const setState = (state: State) => {
+export const setSettingsState = (state: SettingsState) => {
 	stateStore.set(state);
-    setInternalState(state);
+    setInternalSettingsState(state);
 };
 
-export const getState = () => {
+export const getSettingsState = () => {
 	const existingState = get(stateStore);
 	if (existingState) {
 		return existingState;
 	}
 
-    const savedState = getInternalState();
-    const parsedState = stateSchema.parse(savedState || {});
+    const savedState = getInternalSettingsState();
+    const parsedState = settingsStateSchema.parse(savedState || {});
     stateStore.set(parsedState);
 
 	return parsedState;
 };
 
-const getInternalState = () => {
+const getInternalSettingsState = () => {
 	if (appCtx === 'extension') {
 		return vscode.getState();
 	}
@@ -47,7 +47,7 @@ const getInternalState = () => {
 	return JSON.parse(localState);
 }
 
-const setInternalState = (state: State) => {
+const setInternalSettingsState = (state: SettingsState) => {
 	if (appCtx === 'extension') {
 		vscode.setState(state);
 	} else {

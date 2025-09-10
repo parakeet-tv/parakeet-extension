@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { stateStore, getState, setState, type State } from '$lib/state';
+	import { getSettingsState, setSettingsState, type SettingsState } from '$lib/state';
 	import { isStreaming, isConnected, user, authenticated } from '$lib/stores';
 	import favicon from '$lib/assets/favicon.svg';
 	import Button from '$lib/components/ui/button/button.svelte';
@@ -12,14 +12,15 @@
 	import { TagsInput } from '$lib/components/ui/tags-input/index';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import { appCtx, baseUrl } from '$lib/ctx';
-	import { InfoIcon } from '@lucide/svelte';
+	import { CheckIcon, InfoIcon } from '@lucide/svelte';
 
-	let savedState: State = $state(getState());
+	let settingsState: SettingsState = $state(getSettingsState());
 	let viewerCount = $state(0);
+	let isSavingSettings = $state(false);
 
 	function handleTagsChange(tags: string[]) {
-		savedState.userTags = tags;
-		setState(savedState);
+		settingsState.userTags = tags;
+		setSettingsState(settingsState);
 	}
 
 	/**
@@ -33,13 +34,25 @@
 		authenticated.set(false);
 	}
 
+	function saveSettings() {
+		isSavingSettings = true;
+		setSettingsState(settingsState);
+		if (appCtx === 'extension') {
+			vscode.postMessage({ command: 'saveSettings', settings: JSON.stringify(settingsState) });
+		}
+
+		setTimeout(() => {
+			isSavingSettings = false;
+		}, 1000);
+	}
+
 	// Listen for messages from the extension
 	$effect(() => {
 		const messageHandler = (event: MessageEvent) => {
 			const message = event.data;
 			if (message.command === 'tagsGenerated') {
-				savedState.autoTags = message.tags;
-				setState(savedState);
+				settingsState.autoTags = message.tags;
+				setSettingsState(settingsState);
 			} else if (message.command === 'streamingStateChanged') {
 				isStreaming.set(message.isStreaming);
 				isConnected.set(message.isConnected);
@@ -53,8 +66,10 @@
 
 	onMount(() => {
 		if (appCtx === 'extension') {
+			settingsState = getSettingsState();
 			vscode.postMessage({ command: 'generateTags' });
 			vscode.postMessage({ command: 'getStreamingState' });
+			vscode.postMessage({ command: 'saveSettings', settings: JSON.stringify(settingsState) });
 		}
 	});
 </script>
@@ -107,10 +122,10 @@
 			<Label class="mb-2">What to share:</Label>
 
 			<RadioGroup.Root
-				value={savedState.shareOption}
+				value={settingsState.shareOption}
 				onValueChange={(value) => {
-					savedState.shareOption = value as State['shareOption'];
-					setState(savedState);
+					settingsState.shareOption = value as SettingsState['shareOption'];
+					setSettingsState(settingsState);
 				}}
 			>
 				<div class="flex items-center space-x-2">
@@ -176,12 +191,13 @@
 			</RadioGroup.Root>
 		</div>
 
-		<div class="flex flex-row items-center gap-2">
+		<!-- Hidden until VOD saving is supported -->
+		<!-- <div class="flex flex-row items-center gap-2 ">
 			<Switch
-				bind:checked={savedState.saveVod}
+				bind:checked={settingsState.saveVod}
 				onCheckedChange={(checked) => {
-					savedState.saveVod = checked;
-					setState(savedState);
+					settingsState.saveVod = checked;
+					setSettingsState(settingsState);
 				}}
 			/>
 			<Label
@@ -199,16 +215,16 @@
 					</Tooltip.Root>
 				</Tooltip.Provider></Label
 			>
-		</div>
+		</div> -->
 
 		<div class="mb-4">
 			<Label class="mb-2">Stream title</Label>
 			<Textarea
 				placeholder="Enter stream title"
-				value={savedState.streamTitle}
+				value={settingsState.streamTitle}
 				oninput={(e: any) => {
-					savedState.streamTitle = e.target.value;
-					setState(savedState);
+					settingsState.streamTitle = e.target.value;
+					setSettingsState(settingsState);
 				}}
 				class="w-full"
 			></Textarea>
@@ -231,8 +247,8 @@
 				</Tooltip.Provider></Label
 			>
 			<TagsInput
-				tags={savedState.userTags}
-				readOnlyTags={savedState.autoTags}
+				tags={settingsState.userTags}
+				readOnlyTags={settingsState.autoTags}
 				placeholder=""
 				maxTags={3}
 				on:change={(event) => handleTagsChange(event.detail)}
@@ -240,6 +256,18 @@
 			/>
 		</div>
 		<div class="flex flex-col gap-2">
+			<Button
+				onclick={() => saveSettings()}
+				variant="outline"
+				class="relative flex-1"
+				disabled={isSavingSettings}
+			>
+				{#if isSavingSettings}
+					Saved! <CheckIcon class="size-4" />
+				{:else}
+					Save Settings
+				{/if}
+			</Button>
 			<Button
 				onclick={() => {
 					if ($isStreaming) {

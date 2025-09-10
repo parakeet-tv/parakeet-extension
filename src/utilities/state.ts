@@ -1,6 +1,20 @@
 import * as vscode from "vscode";
 import { stopAllStreams } from "../stream";
 import { validateStreamKey } from "./api";
+import z from "zod";
+
+const settingsStateSchema = z.object({
+	streamKey: z.string().default(''),
+	shareOption: z.enum(['current-file', 'directory', 'everything']).default('current-file'),
+	streamTitle: z.string().default(''),
+	streamDescription: z.string().default(''),
+	saveVod: z.boolean().default(false),
+	userTags: z.array(z.string()).default([]),
+	autoTags: z.array(z.string()).default([])
+});
+
+export type SettingsState = z.infer<typeof settingsStateSchema>;
+
 
 // Store webview references for auth state updates
 let registeredWebviews: vscode.Webview[] = [];
@@ -107,3 +121,4 @@ export const logOut = async (context: vscode.ExtensionContext) => {
 
   syncAuthState(context);
 };
+

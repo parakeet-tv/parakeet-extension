@@ -15,6 +15,7 @@ import {
   Hash,
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
+import type { SettingsState } from "./utilities/state";
 
 /**
  * Global streaming state for the extension (single active doc).
@@ -126,7 +127,7 @@ export function sendChatMessage(message: any) {
     console.warn("Cannot send chat message: socket not connected");
     return;
   }
-  
+
   try {
     const chatFrame = Chat.chat.user(message);
     state.socket.send(chatFrame);
@@ -140,7 +141,7 @@ export function sendChatMessage(message: any) {
  */
 function notifyStateChange() {
   const currentState = getStreamingState();
-  state.onStateChangeCallbacks.forEach(callback => callback(currentState));
+  state.onStateChangeCallbacks.forEach((callback) => callback(currentState));
 }
 
 /**
@@ -150,7 +151,7 @@ function notifyStateChange() {
 export async function initSocketConnection(context: vscode.ExtensionContext) {
   state.context = context;
   const token = await context.secrets.get("parakeet-token");
-  
+
   if (!token) {
     console.log("[parakeet] no auth token available");
     return;
@@ -191,7 +192,9 @@ export async function startStream(context?: vscode.ExtensionContext) {
   }
 
   if (!state.socket || !state.isOpen) {
-    console.error("[parakeet] cannot start streaming without socket connection");
+    console.error(
+      "[parakeet] cannot start streaming without socket connection"
+    );
     return;
   }
 
@@ -207,18 +210,24 @@ export async function startStream(context?: vscode.ExtensionContext) {
   );
   state.disposables.push(sub1, sub2, sub3);
 
-  // Kick off with current active file
-  await handleActiveFileChange();
-
+  sendFrame(Control.control.goLive());
   state.isStreaming = true;
+
+  // Sync metadata to reflect the new streaming state
+  syncMetadata();
+
+  // Kick off with current active file
+  await handleActiveFileChange(true);
+
   notifyStateChange();
+
   console.log("[parakeet] stream started");
 }
 
 /** Stop streaming but keep socket connected. */
 export function stopStream() {
   console.log("[parakeet] stopping stream…");
-  
+
   // Y.Doc
   if (state.ydoc) {
     try {
@@ -237,6 +246,8 @@ export function stopStream() {
   state.isStreaming = false;
   notifyStateChange();
   console.log("[parakeet] stream stopped");
+
+  syncMetadata();
 }
 
 /** Stop everything and clean up socket too. */
@@ -274,6 +285,7 @@ async function initSocket(context?: vscode.ExtensionContext) {
   const protocol = "ws";
   const room = "benank";
   const party = "parakeet-server";
+  const prefix = "live";
 
   let query: { token?: string } = {};
   if (context) {
@@ -283,7 +295,7 @@ async function initSocket(context?: vscode.ExtensionContext) {
     }
   }
 
-  const ws = new Partysocket({ host, protocol, party, room, query });
+  const ws = new Partysocket({ host, protocol, party, room, query, prefix });
   ws.binaryType = "arraybuffer";
   state.socket = ws;
   state.isOpen = false;
@@ -329,7 +341,7 @@ async function initSocket(context?: vscode.ExtensionContext) {
       case ChannelId.CHAT: {
         const chat = unpackMsgpack<any>(payloadView);
         console.log("[parakeet] chat:", chat);
-        
+
         // Forward chat message to all registered chat callbacks
         state.chatCallbacks.forEach((callback) => {
           try {
@@ -365,7 +377,7 @@ async function initSocket(context?: vscode.ExtensionContext) {
  * - if file is gitignored → mark ignored, tear down any current Y.Doc, do nothing
  * - else → create Y.Doc, seed with full content, send CODE.SNAPSHOT
  */
-async function handleActiveFileChange() {
+async function handleActiveFileChange(forceUpdate = false) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
     console.log("[parakeet] no active editor");
@@ -377,7 +389,7 @@ async function handleActiveFileChange() {
 
   const uri = editor.document.uri;
   const uriStr = uri.toString();
-  if (uriStr === state.currentUri) return; // no-op
+  if (uriStr === state.currentUri && !forceUpdate) return; // no-op
 
   const relPath = vscode.workspace.asRelativePath(uri);
   const fileId = Hash.fileIdFromPath(relPath);
@@ -566,4 +578,57 @@ function flushQueue() {
     console.log(`[parakeet] flushed ${state.sendQueue.length} queued frame(s)`);
   }
   state.sendQueue = [];
+}
+
+// Store current settings for metadata sync
+let currentSettings: SettingsState | null = null;
+
+/**
+ * Sync metadata to server using current settings and streaming state
+ */
+function syncMetadata() {
+  try {
+    if (!currentSettings) {
+      console.warn("[parakeet] cannot sync metadata: no settings");
+      return;
+    }
+    // Combine userTags and autoTags for the metadata
+    const allTags = [
+      ...(currentSettings.userTags || []),
+      ...(currentSettings.autoTags || []),
+    ];
+
+    // Create metadata frame using the CtrlUpdateMetadata structure
+    const metadataFrame = Control.control.updateMetadata({
+      title: currentSettings.streamTitle,
+      description: currentSettings.streamDescription,
+      tags: allTags,
+      isLive: state.isStreaming,
+      startTime: Date.now(), // Current timestamp
+    });
+
+    sendFrame(metadataFrame);
+  } catch (error) {
+    console.error("[parakeet] error syncing metadata:", error);
+  }
+}
+
+/**
+ * Called when the user saves settings in the webview
+ * Syncs settings as metadata to the server using Control.control.updateMetadata
+ * @param settings
+ */
+export function saveSettings(settings: SettingsState) {
+  console.log("[parakeet] saving settings", settings);
+
+  // Store settings for future metadata syncs
+  currentSettings = settings;
+
+  if (!state.socket || !state.isOpen) {
+    console.warn("[parakeet] cannot sync settings: socket not connected");
+    return;
+  }
+
+  // Sync metadata with the new settings
+  syncMetadata();
 }

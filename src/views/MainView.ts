@@ -7,12 +7,14 @@ import {
   stopAllStreams,
   setStateChangeCallback,
   getStreamingState,
+  saveSettings
 } from "../stream";
 import { 
   registerWebviewForAuthUpdates, 
   unregisterWebviewForAuthUpdates, 
   syncAuthState, 
-  logOut
+  logOut,
+  type SettingsState
 } from "../utilities/state";
 
 export class MainViewProvider implements vscode.WebviewViewProvider {
@@ -102,6 +104,9 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "logOut":
           logOut(this._context);
+          return;
+        case "saveSettings":
+          saveSettings(JSON.parse(message.settings) as SettingsState);
           return;
       }
     });
