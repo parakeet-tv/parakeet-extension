@@ -13,6 +13,7 @@ import {
   Code,
   Chat,
   Hash,
+  type CtrlUpdateMetadata,
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
@@ -304,8 +305,7 @@ async function initSocket(context?: vscode.ExtensionContext) {
     console.log("[parakeet] ws open");
     state.isOpen = true;
     notifyStateChange();
-    flushQueue();
-    // handshake
+
     ws.send(
       Control.control.hello({
         v: 1,
@@ -314,7 +314,9 @@ async function initSocket(context?: vscode.ExtensionContext) {
         features: ["delta"],
       })
     );
-    // NOTE: as the broadcaster we do not request a snapshot
+
+    ws.send(Control.control.broadcaster());
+
     flushQueue();
   };
 
@@ -336,6 +338,15 @@ async function initSocket(context?: vscode.ExtensionContext) {
           console.log("[parakeet] VIEWER_COUNT=", msg?.count);
           state.viewerCount = msg?.count ?? 0;
           notifyStateChange();
+        } else if (header.type === ControlType.UPDATE_METADATA) {
+          const msg = unpackMsgpack<CtrlUpdateMetadata>(payloadView);
+          if (state.isStreaming && !msg.isLive) {
+            // if we were streaming and the server is no longer streaming, stop the stream
+            stopStream();
+          } else if (!state.isStreaming && msg.isLive) {
+            // if we were not streaming and the server is streaming, sync the metadata to ensure the metadata is up to date
+            syncMetadata();
+          }
         }
         return;
       case ChannelId.CHAT: {
