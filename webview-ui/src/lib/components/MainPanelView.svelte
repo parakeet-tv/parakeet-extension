@@ -221,6 +221,7 @@
 			<Label class="mb-2">Stream title</Label>
 			<Textarea
 				placeholder="Enter stream title"
+				maxlength={200}
 				value={settingsState.streamTitle}
 				oninput={(e: any) => {
 					settingsState.streamTitle = e.target.value;

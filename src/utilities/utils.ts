@@ -179,10 +179,6 @@ export async function generateTagsFromRepo(): Promise<string[]> {
 
     if (hasSrc || hasLib) tags.add('web-development');
     if (hasTest) tags.add('testing');
-
-    // Add VS Code extension tag if this is a VS Code extension
-    const hasExtensionJson = await vscode.workspace.fs.stat(Uri.joinPath(folder.uri, '.vscode')).then(() => true, () => false);
-    if (hasExtensionJson) tags.add('vscode-extension');
   }
 
   // Convert to array and limit to 10 tags

@@ -60,16 +60,18 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         viewerCount,
       });
 
-      if (isStreaming && isConnected) {
-        webviewView.badge = {
-          tooltip: `LIVE with ${viewerCount} viewer${
-            viewerCount === 1 ? "" : "s"
-          }`,
-          value: viewerCount,
-        };
-      } else {
-        webviewView.badge = undefined;
-      }
+      // Seems like there is an internal rate limit on the badge
+      // TOOD: come back to this
+      // if (isStreaming && isConnected) {
+      //   webviewView.badge = {
+      //     tooltip: `LIVE with ${viewerCount} viewer${
+      //       viewerCount === 1 ? "" : "s"
+      //     }`,
+      //     value: viewerCount,
+      //   };
+      // } else {
+      //   webviewView.badge = undefined;
+      // }
     });
 
     webviewView.webview.onDidReceiveMessage(async (message: any) => {
