@@ -149,7 +149,7 @@
 					>
 				</div>
 				<div class="flex items-center space-x-2">
-					<RadioGroup.Item value="directory" id="directory" />
+					<RadioGroup.Item value="directory" id="directory" disabled />
 					<Label for="directory"
 						>Full directory structure
 						<Tooltip.Provider>
@@ -169,7 +169,7 @@
 					>
 				</div>
 				<div class="flex items-center space-x-2">
-					<RadioGroup.Item value="everything" id="everything" />
+					<RadioGroup.Item value="everything" id="everything" disabled />
 					<Label for="everything"
 						>Everything
 						<Tooltip.Provider>
