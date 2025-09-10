@@ -466,16 +466,23 @@ function onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
   if (event.document.uri.toString() !== state.currentUri) return;
 
   const ytext = state.ytext;
-  // Apply changes in the order VS Code gives (already sorted)
-  for (const change of event.contentChanges) {
-    const start = event.document.offsetAt(change.range.start);
-    if (change.rangeLength > 0) {
-      ytext.delete(start, change.rangeLength);
+
+  // Use pre-change absolute offsets provided by VS Code.
+  const changes = event.contentChanges.map((ch) => ({
+    start: ch.rangeOffset, // absolute offset (pre-change)
+    len: ch.rangeLength, // delete length (pre-change)
+    text: ch.text, // replacement text
+  }));
+
+  // Apply from highest offset -> lowest to avoid index drift.
+  changes.sort((a, b) => b.start - a.start);
+
+  state.ydoc.transact(() => {
+    for (const { start, len, text } of changes) {
+      if (len > 0) ytext.delete(start, len); // delete first
+      if (text && text.length) ytext.insert(start, text); // then insert at same start
     }
-    if (change.text.length > 0) {
-      ytext.insert(start, change.text);
-    }
-  }
+  }, "ext"); // optional origin tag
 }
 
 /* ------------------------- cursor / highlights ------------------------- */
