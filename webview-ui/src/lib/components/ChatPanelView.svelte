@@ -12,6 +12,7 @@
 	// Maximum message length and chat history
 	const MAX_MESSAGE_LENGTH = 200;
 	const MAX_MESSAGES = 200;
+	let messagesContainer: HTMLDivElement;
 
 	// Generate a consistent color for each user based on their ID
 	function getUserColor(userId: string): string {
@@ -142,6 +143,16 @@
 		return () => window.removeEventListener('message', messageHandler);
 	});
 
+	// Auto-scroll to bottom when new messages arrive
+	$effect(() => {
+		if (messagesContainer && $chatMessages.length > 0) {
+			// Use setTimeout to ensure DOM has updated
+			setTimeout(() => {
+				messagesContainer.scrollTop = messagesContainer.scrollHeight;
+			}, 0);
+		}
+	});
+
 	// Format timestamp
 	function formatTime(timestamp: number): string {
 		return new Date(timestamp).toLocaleTimeString([], {
@@ -153,13 +164,13 @@
 
 <div class="flex h-full max-h-full flex-col overflow-hidden text-xs">
 	<!-- Messages Container -->
-	<div class="mt-auto flex max-h-full flex-1 flex-col justify-end overflow-y-auto p-1">
+	<div class="mt-auto flex max-h-full flex-1 flex-col overflow-y-auto p-1" bind:this={messagesContainer}>
 		{#if $chatMessages.length === 0}
-			<div class="text-muted-foreground">
+			<div class="text-muted-foreground mt-auto">
 				{$authenticated ? 'Chat messages will appear here...' : 'Sign in to join the chat!'}
 			</div>
 		{:else}
-			<div class="flex flex-col space-y-0.5">
+			<div class="flex flex-col space-y-0.5 mt-auto">
 				{#each $chatMessages as message (message.id)}
 					<p class="break-words">
 						<span class="font-medium" style="color: {message.user.color}"
