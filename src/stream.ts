@@ -17,6 +17,7 @@ import {
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
+import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
 
 /**
  * Global streaming state for the extension (single active doc).
@@ -220,6 +221,8 @@ export async function startStream(context?: vscode.ExtensionContext) {
   // Kick off with current active file
   await handleActiveFileChange(true);
 
+  startTerminalStreaming(context!, (bytes) => sendFrame(bytes));
+
   notifyStateChange();
 
   console.log("[parakeet] stream started");
@@ -245,6 +248,7 @@ export function stopStream() {
   state.currentUri = null;
   state.currentIgnored = false;
   state.isStreaming = false;
+  stopTerminalStreaming();
   notifyStateChange();
   console.log("[parakeet] stream stopped");
 
