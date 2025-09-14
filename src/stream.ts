@@ -19,6 +19,7 @@ import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
 import { isDev, getStreamServerUrl } from "./utilities/env";
 import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
+import WS from 'ws';
 
 /**
  * Global streaming state for the extension (single active doc).
@@ -302,7 +303,7 @@ async function initSocket(context: vscode.ExtensionContext) {
     }
   }
 
-  const ws = new Partysocket({ host, protocol, party, room, query, prefix });
+  const ws = new Partysocket({ host, protocol, party, room, query, prefix, WebSocket: WS });
   ws.binaryType = "arraybuffer";
   state.socket = ws;
   state.isOpen = false;
