@@ -19,7 +19,9 @@ export function setExtensionMode(mode: vscode.ExtensionMode): void {
  */
 function getExtensionMode(): vscode.ExtensionMode {
   if (extensionMode === undefined) {
-    throw new Error("Extension mode not set. Make sure setExtensionMode() is called during activation.");
+    throw new Error(
+      "Extension mode not set. Make sure setExtensionMode() is called during activation."
+    );
   }
   return extensionMode;
 }
@@ -27,17 +29,20 @@ function getExtensionMode(): vscode.ExtensionMode {
 /**
  * Check if the extension is running in development mode
  */
-export const isDev = (): boolean => getExtensionMode() === vscode.ExtensionMode.Development;
+export const isDev = (): boolean =>
+  getExtensionMode() === vscode.ExtensionMode.Development;
 
 /**
  * Check if the extension is running in production mode
  */
-export const isProd = (): boolean => getExtensionMode() === vscode.ExtensionMode.Production;
+export const isProd = (): boolean =>
+  getExtensionMode() === vscode.ExtensionMode.Production;
 
 /**
  * Check if the extension is running in test mode
  */
-export const isTest = (): boolean => getExtensionMode() === vscode.ExtensionMode.Test;
+export const isTest = (): boolean =>
+  getExtensionMode() === vscode.ExtensionMode.Test;
 
 export const getBaseUrl = (): string => {
   if (isDev()) {
@@ -45,3 +50,9 @@ export const getBaseUrl = (): string => {
   }
   return "https://parakeet.tv";
 };
+
+export const streamServerUrl = isProd()
+  ? "stream.parakeet.tv"
+  : isTest()
+  ? "stream-staging.parakeet.tv"
+  : "localhost:8787";
