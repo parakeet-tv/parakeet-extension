@@ -11,7 +11,6 @@ jobs:
   package-and-publish:
     runs-on: ubuntu-latest
     env:
-      NODE_VERSION: 22
       VSCODE_EXTENSION_PUBLISHING_TOKEN: ${{ secrets.VSCODE_EXTENSION_PUBLISHING_TOKEN }}
 
     steps:
@@ -21,7 +20,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: latest
           cache: npm
           cache-dependency-path: |
             package-lock.json
