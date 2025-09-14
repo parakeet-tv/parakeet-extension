@@ -1,13 +1,34 @@
 import * as vscode from "vscode";
 import { MainViewProvider } from "./views/MainView";
 import { ChatViewProvider } from "./views/ChatView";
-import { addStateChangeCallback, handleAuthTokenChange, initSocketConnection } from "./stream";
+import {
+  addStateChangeCallback,
+  handleAuthTokenChange,
+  initSocketConnection,
+} from "./stream";
 import { syncAuthState } from "./utilities/state";
+
+let outputChannel: vscode.OutputChannel;
+
+export const log = (...args: any[]) => {
+  outputChannel?.appendLine("[LOG] " + args.map(String).join(" "));
+};
+
+export const error = (...args: any[]) => {
+  outputChannel?.appendLine("[ERROR] " + args.map(String).join(" "));
+};
+
+export const warn = (...args: any[]) => {
+  outputChannel?.appendLine("[WARN] " + args.map(String).join(" "));
+};
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+  outputChannel = vscode.window.createOutputChannel("Parakeet.tv");
+  context.subscriptions.push(outputChannel);
 
+  log("Activating Parakeet.tv extension");
   const handler: vscode.UriHandler = {
     handleUri(uri) {
       if (uri.path === "/auth" && uri.authority === context.extension.id) {
@@ -22,7 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
           context.secrets.store("parakeet-userId", userId);
           context.secrets.store("parakeet-username", username);
           context.secrets.store("parakeet-imageUrl", imageUrl);
-          
+
           // Sync auth state after storing new credentials
           syncAuthState(context);
           // Initialize socket with new token
@@ -43,19 +64,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.extensionUri,
     context.extensionMode,
     context
-  );
-
-  console.log(
-    `workspace: ${vscode.workspace.workspaceFolders
-      ?.map((r) => r.name)
-      .join(" ")}`
-  );
-
-  // Open files (multiple in split views)
-  console.log(
-    `files: ${vscode.window.visibleTextEditors
-      .map((r) => r.document.fileName)
-      .join(" ")}`
   );
 
   context.subscriptions.push(
@@ -85,7 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
     "parakeet-tv.statusBarClick",
     () => {
       // Log to console when status bar item is clicked
-      console.log("Parakeet status bar item clicked!");
+      log("Parakeet status bar item clicked!");
     }
   );
 
@@ -104,10 +112,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initial auth state sync on activation
   syncAuthState(context);
-  
+
   // Initialize socket connection if we have a valid token
   initSocketConnection(context);
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+  outputChannel?.dispose();
+}

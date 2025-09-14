@@ -20,6 +20,7 @@ import type { SettingsState } from "./utilities/state";
 import { isDev, getStreamServerUrl } from "./utilities/env";
 import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
 import WS from 'ws';
+import { log, error as consoleError, warn } from "./extension";
 
 /**
  * Global streaming state for the extension (single active doc).
@@ -128,7 +129,7 @@ export function removeChatCallback(callback: (message: any) => void) {
  */
 export function sendChatMessage(message: any) {
   if (!state.socket || !state.isOpen) {
-    console.warn("Cannot send chat message: socket not connected");
+    warn("Cannot send chat message: socket not connected");
     return;
   }
 
@@ -136,7 +137,7 @@ export function sendChatMessage(message: any) {
     const chatFrame = Chat.chat.user(message);
     state.socket.send(chatFrame);
   } catch (error) {
-    console.error("Error sending chat message:", error);
+    consoleError("Error sending chat message:", error);
   }
 }
 
@@ -157,19 +158,19 @@ export async function initSocketConnection(context: vscode.ExtensionContext) {
   const token = await context.secrets.get("parakeet-token");
 
   if (!token) {
-    console.log("[parakeet] no auth token available");
+    log("[parakeet] no auth token available");
     return;
   }
 
   // If we already have a socket with the same token, no need to reconnect
   if (state.socket && state.currentToken === token) {
-    console.log("[parakeet] socket already connected with current token");
+    log("[parakeet] socket already connected with current token");
     return;
   }
 
   // Clean up existing socket if token changed
   if (state.socket && state.currentToken !== token) {
-    console.log("[parakeet] token changed, reconnecting socket");
+    log("[parakeet] token changed, reconnecting socket");
     cleanupSocket();
   }
 
@@ -185,10 +186,10 @@ export async function initSocketConnection(context: vscode.ExtensionContext) {
  */
 export async function startStream(context?: vscode.ExtensionContext) {
   if (state.isStreaming) {
-    console.log("[parakeet] stream already active");
+    log("[parakeet] stream already active");
     return;
   }
-  console.log("[parakeet] starting stream…");
+  log("[parakeet] starting stream…");
 
   // Ensure socket is connected first
   if (context) {
@@ -196,7 +197,7 @@ export async function startStream(context?: vscode.ExtensionContext) {
   }
 
   if (!state.socket || !state.isOpen) {
-    console.error(
+    consoleError(
       "[parakeet] cannot start streaming without socket connection"
     );
     return;
@@ -227,12 +228,12 @@ export async function startStream(context?: vscode.ExtensionContext) {
 
   notifyStateChange();
 
-  console.log("[parakeet] stream started");
+  log("[parakeet] stream started");
 }
 
 /** Stop streaming but keep socket connected. */
 export function stopStream() {
-  console.log("[parakeet] stopping stream…");
+  log("[parakeet] stopping stream…");
 
   // Y.Doc
   if (state.ydoc) {
@@ -252,14 +253,14 @@ export function stopStream() {
   state.isStreaming = false;
   stopTerminalStreaming();
   notifyStateChange();
-  console.log("[parakeet] stream stopped");
+  log("[parakeet] stream stopped");
 
   syncMetadata();
 }
 
 /** Stop everything and clean up socket too. */
 export function stopAllStreams() {
-  console.log("[parakeet] stopping all streams and socket…");
+  log("[parakeet] stopping all streams and socket…");
   stopStream();
   cleanupSocket();
 }
@@ -281,7 +282,7 @@ function cleanupSocket() {
  * Handle auth token changes - should be called when new token is detected
  */
 export async function handleAuthTokenChange(context: vscode.ExtensionContext) {
-  console.log("[parakeet] auth token changed, updating socket connection");
+  log("[parakeet] auth token changed, updating socket connection");
   await initSocketConnection(context);
 }
 
@@ -309,7 +310,7 @@ async function initSocket(context: vscode.ExtensionContext) {
   state.isOpen = false;
 
   ws.onopen = () => {
-    console.log("[parakeet] ws open");
+    log("[parakeet] ws open");
     state.isOpen = true;
     notifyStateChange();
 
@@ -339,10 +340,10 @@ async function initSocket(context: vscode.ExtensionContext) {
       case ChannelId.CONTROL:
         if (header.type === ControlType.WELCOME) {
           const msg = unpackMsgpack<{ seq: number }>(payloadView);
-          console.log("[parakeet] WELCOME seq=", msg?.seq);
+          log("[parakeet] WELCOME seq=", msg?.seq);
         } else if (header.type === ControlType.VIEWER_COUNT) {
           const msg = unpackMsgpack<{ count: number }>(payloadView);
-          console.log("[parakeet] VIEWER_COUNT=", msg?.count);
+          log("[parakeet] VIEWER_COUNT=", msg?.count);
           state.viewerCount = msg?.count ?? 0;
           notifyStateChange();
         } else if (header.type === ControlType.UPDATE_METADATA) {
@@ -358,14 +359,14 @@ async function initSocket(context: vscode.ExtensionContext) {
         return;
       case ChannelId.CHAT: {
         const chat = unpackMsgpack<any>(payloadView);
-        console.log("[parakeet] chat:", chat);
+        log("[parakeet] chat:", chat);
 
         // Forward chat message to all registered chat callbacks
         state.chatCallbacks.forEach((callback) => {
           try {
             callback(chat);
           } catch (error) {
-            console.error("Error forwarding chat message to callback:", error);
+            consoleError("Error forwarding chat message to callback:", error);
           }
         });
         return;
@@ -378,9 +379,9 @@ async function initSocket(context: vscode.ExtensionContext) {
     }
   };
 
-  ws.onerror = (e) => console.error("[parakeet] ws error", e);
+  ws.onerror = (e) => consoleError("[parakeet] ws error", e);
   ws.onclose = (e) => {
-    console.log("[parakeet] ws closed", e.code, e.reason);
+    log("[parakeet] ws closed", e.code, e.reason);
     state.isOpen = false;
     notifyStateChange();
   };
@@ -398,7 +399,7 @@ async function initSocket(context: vscode.ExtensionContext) {
 async function handleActiveFileChange(forceUpdate = false) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    console.log("[parakeet] no active editor");
+    log("[parakeet] no active editor");
     state.currentUri = null;
     state.currentIgnored = false;
     teardownDoc();
@@ -435,7 +436,7 @@ async function handleActiveFileChange(forceUpdate = false) {
     const reason = ignoreInfo.gitIgnored
       ? "file is gitignored"
       : "file is too large (>0.8 MB)";
-    console.log(
+    log(
       `[parakeet] ${reason}; not streaming:`,
       vscode.workspace.asRelativePath(uri)
     );
@@ -450,7 +451,7 @@ async function handleActiveFileChange(forceUpdate = false) {
 
   // Send full snapshot
   sendFrame(Code.encodeSnapshot(state.ydoc!, fileId));
-  console.log(
+  log(
     "[parakeet] sent SNAPSHOT for",
     vscode.workspace.asRelativePath(uri)
   );
@@ -600,7 +601,7 @@ function flushQueue() {
   // FIFO flush
   for (const frame of state.sendQueue) state.socket.send(frame);
   if (state.sendQueue.length) {
-    console.log(`[parakeet] flushed ${state.sendQueue.length} queued frame(s)`);
+    log(`[parakeet] flushed ${state.sendQueue.length} queued frame(s)`);
   }
   state.sendQueue = [];
 }
@@ -614,7 +615,7 @@ let currentSettings: SettingsState | null = null;
 function syncMetadata() {
   try {
     if (!currentSettings) {
-      console.warn("[parakeet] cannot sync metadata: no settings");
+      warn("[parakeet] cannot sync metadata: no settings");
       return;
     }
     // Combine userTags and autoTags for the metadata
@@ -634,7 +635,7 @@ function syncMetadata() {
 
     sendFrame(metadataFrame);
   } catch (error) {
-    console.error("[parakeet] error syncing metadata:", error);
+    consoleError("[parakeet] error syncing metadata:", error);
   }
 }
 
@@ -644,13 +645,13 @@ function syncMetadata() {
  * @param settings
  */
 export function saveSettings(settings: SettingsState) {
-  console.log("[parakeet] saving settings", settings);
+  log("[parakeet] saving settings", settings);
 
   // Store settings for future metadata syncs
   currentSettings = settings;
 
   if (!state.socket || !state.isOpen) {
-    console.warn("[parakeet] cannot sync settings: socket not connected");
+    warn("[parakeet] cannot sync settings: socket not connected");
     return;
   }
 
