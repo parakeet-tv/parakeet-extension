@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const handler: vscode.UriHandler = {
     handleUri(uri) {
-      if (uri.path === "/auth" && uri.scheme === "vscode" && uri.authority === "parakeet.tv.parakeet-tv") {
+      if (uri.path === "/auth" && uri.scheme === "vscode" && uri.authority === context.extension.id) {
         const params = new URLSearchParams(uri.query);
         const token = params.get("token");
         const userId = params.get("userId");
