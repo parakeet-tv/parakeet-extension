@@ -4,7 +4,6 @@ import { validateStreamKey } from "./api";
 import z from "zod";
 
 const settingsStateSchema = z.object({
-	streamKey: z.string().default(''),
 	shareOption: z.enum(['current-file', 'directory', 'everything']).default('current-file'),
 	streamTitle: z.string().default(''),
 	streamDescription: z.string().default(''),
