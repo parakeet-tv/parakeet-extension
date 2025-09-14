@@ -3,7 +3,7 @@
   "displayName": "parakeet.tv",
   "description": "Share your code with the world",
   "version": "0.0.1",
-  "publisher": "parakeet.tv",
+  "publisher": "parakeet-tv",
   "type": "commonjs",
   "icon": "resources/icon.png",
   "engines": {
