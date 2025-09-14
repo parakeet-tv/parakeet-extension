@@ -1,4 +1,5 @@
-# Parakeet.tv Extension
+# [Parakeet.tv](https://parakeet.tv) Extension
 
-1. Press F5 to start a new debugging session.
-2. Make changes to the code, then go into your debugging window and select "Reload Window" to see the changes.
+Share your code with the world.
+
+This extension allows you to livestream your code, terminals, and more to [Parakeet.tv](https://parakeet.tv) straight from your editor.

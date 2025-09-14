@@ -1,9 +1,7 @@
-# Change Log
+# Changelog
 
-All notable changes to the "parakeet-tv" extension will be documented in this file.
+All notable changes to this project will be documented in this file.
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+## 0.0.1 - 2025-09-14
 
-## [Unreleased]
-
-- Initial release
+Initial release.
