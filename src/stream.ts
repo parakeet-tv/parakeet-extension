@@ -14,12 +14,13 @@ import {
   Chat,
   Hash,
   type CtrlUpdateMetadata,
+  type CtrlStreamStatus,
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
 import { isDev, getStreamServerUrl } from "./utilities/env";
 import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
-import WS from 'ws';
+import WS from "ws";
 import { log, error as consoleError, warn } from "./extension";
 
 /**
@@ -197,9 +198,7 @@ export async function startStream(context?: vscode.ExtensionContext) {
   }
 
   if (!state.socket || !state.isOpen) {
-    consoleError(
-      "[parakeet] cannot start streaming without socket connection"
-    );
+    consoleError("[parakeet] cannot start streaming without socket connection");
     return;
   }
 
@@ -215,12 +214,8 @@ export async function startStream(context?: vscode.ExtensionContext) {
   );
   state.disposables.push(sub1, sub2, sub3);
 
-  sendFrame(Control.control.goLive());
+  sendFrame(Control.control.startStream());
   state.isStreaming = true;
-
-  // Sync metadata to reflect the new streaming state
-  syncMetadata();
-
   // Kick off with current active file
   await handleActiveFileChange(true);
 
@@ -234,6 +229,8 @@ export async function startStream(context?: vscode.ExtensionContext) {
 /** Stop streaming but keep socket connected. */
 export function stopStream() {
   log("[parakeet] stopping stream…");
+
+  sendFrame(Control.control.stopStream());
 
   // Y.Doc
   if (state.ydoc) {
@@ -304,7 +301,15 @@ async function initSocket(context: vscode.ExtensionContext) {
     }
   }
 
-  const ws = new Partysocket({ host, protocol, party, room, query, prefix, WebSocket: WS });
+  const ws = new Partysocket({
+    host,
+    protocol,
+    party,
+    room,
+    query,
+    prefix,
+    WebSocket: WS,
+  });
   ws.binaryType = "arraybuffer";
   state.socket = ws;
   state.isOpen = false;
@@ -348,10 +353,17 @@ async function initSocket(context: vscode.ExtensionContext) {
           notifyStateChange();
         } else if (header.type === ControlType.UPDATE_METADATA) {
           const msg = unpackMsgpack<CtrlUpdateMetadata>(payloadView);
+          log("[parakeet] UPDATE_METADATA", JSON.stringify(msg, null, 2));
+          // do nothing
+        } else if (header.type === ControlType.STREAM_STATUS) {
+          const msg = unpackMsgpack<CtrlStreamStatus>(payloadView);
+          log("[parakeet] STREAM_STATUS", JSON.stringify(msg, null, 2));
           if (state.isStreaming && !msg.isLive) {
+            log("[parakeet] server is no longer streaming, stopping stream");
             // if we were streaming and the server is no longer streaming, stop the stream
             stopStream();
           } else if (!state.isStreaming && msg.isLive) {
+            log("[parakeet] server is streaming, syncing metadata");
             // if we were not streaming and the server is streaming, sync the metadata to ensure the metadata is up to date
             syncMetadata();
           }
@@ -451,10 +463,7 @@ async function handleActiveFileChange(forceUpdate = false) {
 
   // Send full snapshot
   sendFrame(Code.encodeSnapshot(state.ydoc!, fileId));
-  log(
-    "[parakeet] sent SNAPSHOT for",
-    vscode.workspace.asRelativePath(uri)
-  );
+  log("[parakeet] sent SNAPSHOT for", vscode.workspace.asRelativePath(uri));
 
   // Immediately sync pointer & highlights for the new active file
   sendCursorForEditor(editor);
@@ -612,7 +621,7 @@ let currentSettings: SettingsState | null = null;
 /**
  * Sync metadata to server using current settings and streaming state
  */
-function syncMetadata() {
+export function syncMetadata() {
   try {
     if (!currentSettings) {
       warn("[parakeet] cannot sync metadata: no settings");
@@ -628,9 +637,7 @@ function syncMetadata() {
     const metadataFrame = Control.control.updateMetadata({
       title: currentSettings.streamTitle,
       description: currentSettings.streamDescription,
-      tags: allTags,
-      isLive: state.isStreaming,
-      startTime: Date.now(), // Current timestamp
+      tags: allTags
     });
 
     sendFrame(metadataFrame);
@@ -641,7 +648,6 @@ function syncMetadata() {
 
 /**
  * Called when the user saves settings in the webview
- * Syncs settings as metadata to the server using Control.control.updateMetadata
  * @param settings
  */
 export function saveSettings(settings: SettingsState) {
@@ -654,7 +660,4 @@ export function saveSettings(settings: SettingsState) {
     warn("[parakeet] cannot sync settings: socket not connected");
     return;
   }
-
-  // Sync metadata with the new settings
-  syncMetadata();
 }

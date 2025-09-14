@@ -7,7 +7,8 @@ import {
   stopAllStreams,
   setStateChangeCallback,
   getStreamingState,
-  saveSettings
+  saveSettings,
+  syncMetadata
 } from "../stream";
 import { 
   registerWebviewForAuthUpdates, 
@@ -109,6 +110,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
           return;
         case "saveSettings":
           saveSettings(JSON.parse(message.settings) as SettingsState);
+          syncMetadata();
           return;
       }
     });

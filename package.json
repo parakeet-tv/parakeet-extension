@@ -69,6 +69,9 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "package:vsix": "npm run build:webview && npm run vscode:prepublish && npm run vsix:create",
+    "build:webview": "cd webview-ui && npm ci && npm run build",
+    "vsix:create": "mkdir -p dist && npx --yes @vscode/vsce package -o dist/",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
@@ -95,7 +98,7 @@
   ],
   "dependencies": {
     "jose": "^6.1.0",
-    "parakeet-proto": "git+ssh://git@github.com/parakeet-tv/parakeet-proto.git#v0.14.0",
+    "parakeet-proto": "git+ssh://git@github.com/parakeet-tv/parakeet-proto.git#v0.15.0",
     "partysocket": "^1.1.5",
     "ws": "^8.18.3",
     "yjs": "^13.6.27",
