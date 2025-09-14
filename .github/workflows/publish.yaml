@@ -1,0 +1,67 @@
+name: Build & Publish VS Code Extension (on Release)
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: 22
+      VSCODE_EXTENSION_PUBLISHING_TOKEN: ${{ secrets.VSCODE_EXTENSION_PUBLISHING_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            webview-ui/package-lock.json
+
+      - name: Install root deps
+        run: npm ci
+
+      - name: Build webview UI
+        working-directory: webview-ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build extension (prod)
+        run: npm run vscode:prepublish
+
+      - name: Read package metadata
+        id: meta
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Package .vsix
+        id: package
+        run: |
+          mkdir -p dist
+          VSIX_PATH="dist/${{ steps.meta.outputs.name }}-${{ steps.meta.outputs.version }}.vsix"
+          npx --yes @vscode/vsce package -o "$VSIX_PATH"
+          echo "vsix_path=$VSIX_PATH" >> $GITHUB_OUTPUT
+
+      - name: Attach .vsix to this GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.vsix_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ env.VSCODE_EXTENSION_PUBLISHING_TOKEN }}
+        run: |
+          npx --yes @vscode/vsce publish --packagePath "${{ steps.package.outputs.vsix_path }}" -p "$VSCODE_EXTENSION_PUBLISHING_TOKEN"
