@@ -3,13 +3,10 @@ import { MainViewProvider } from "./views/MainView";
 import { ChatViewProvider } from "./views/ChatView";
 import { addStateChangeCallback, handleAuthTokenChange, initSocketConnection } from "./stream";
 import { syncAuthState } from "./utilities/state";
-import { setExtensionMode } from "./utilities/env";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  // Set the global extension mode for the env utility
-  setExtensionMode(context.extensionMode);
 
   const handler: vscode.UriHandler = {
     handleUri(uri) {

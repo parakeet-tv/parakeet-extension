@@ -73,7 +73,7 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
     const username = await context.secrets.get("parakeet-username");
     const imageUrl = await context.secrets.get("parakeet-imageUrl");
 
-    const isValid = await validateStreamKey(token);
+    const isValid = await validateStreamKey(token, context);
 
     // Check if all auth info is present
     if (!token || !userId || !username || !imageUrl || !isValid) {

@@ -17,7 +17,7 @@ import {
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
-import { isDev, streamServerUrl } from "./utilities/env";
+import { isDev, getStreamServerUrl } from "./utilities/env";
 import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
 
 /**
@@ -286,10 +286,10 @@ export async function handleAuthTokenChange(context: vscode.ExtensionContext) {
 
 /* --------------------------- socket + routing --------------------------- */
 
-async function initSocket(context?: vscode.ExtensionContext) {
+async function initSocket(context: vscode.ExtensionContext) {
   // Use localhost for development, production server for production
-  const host = streamServerUrl;
-  const protocol = isDev() ? "ws" : "wss";
+  const host = getStreamServerUrl(context);
+  const protocol = isDev(context) ? "ws" : "wss";
   const room = "benank";
   const party = "parakeet-server";
   const prefix = "live";
