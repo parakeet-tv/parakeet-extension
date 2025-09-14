@@ -7,7 +7,7 @@
   "type": "commonjs",
   "icon": "resources/icon.png",
   "engines": {
-    "vscode": "^1.96.2"
+    "vscode": "^1.99.3"
   },
   "categories": [
     "Chat",
@@ -79,7 +79,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.90.0",
+    "@types/vscode": "^1.98.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
     "@vscode/test-cli": "^0.0.11",
