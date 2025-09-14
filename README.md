@@ -4,6 +4,17 @@ Share your code with the world.
 
 This extension allows you to livestream your code, terminals, and more to [Parakeet.tv](https://parakeet.tv) straight from your editor.
 
+## How to Install
+
+There are two ways to install the extension:
+ - If you're using VS Code: [install this extension for VS Code from the marketplace](https://marketplace.visualstudio.com/items?itemName=parakeet-tv.parakeet-tv)
+ - If you're using Cursor, Windsurf, or another fork: 
+   - [Download the latest VSIX file](https://github.com/parakeet-tv/parakeet-extension/releases/latest)
+   - Open the command palette via Ctrl/Cmd + Shift + P
+   - Run "Extensions: Install from VSIX..." and select the VSIX file
+
+Once it's installed, you'll be able to navigate to the Parakeet.tv page on the left panel to start streaming.
+
 ## What data is sent to Parakeet.tv?
 
 This is a good question! The data you send to Parakeet.tv is based on your extension's settings. 
