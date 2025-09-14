@@ -61,6 +61,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to VS Code Marketplace
+        if: ${{ !github.event.release.prerelease }}
         env:
           VSCE_PAT: ${{ env.VSCODE_EXTENSION_PUBLISHING_TOKEN }}
         run: |
