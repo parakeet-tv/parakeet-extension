@@ -24,3 +24,5 @@ For example, if you have "Current file only" under "What to share", only your cu
 Currently, all terminal windows (inputs and outputs) are synced to the server and all viewers. Your keystrokes are not synced; only submitted commands (eg. after you press enter) are synced, but all output is synced.
 
 If you'd like to take a deeper look, this extension is open source under the BSL 1.1 license: [Parakeet.tv Extension](https://github.com/parakeet-tv/parakeet-extension). 
+
+For more information about how we process data, please see our [Privacy Policy](https://parakeet.tv/privacy).
