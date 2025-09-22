@@ -15,9 +15,11 @@ import {
   Hash,
   type CtrlUpdateMetadata,
   type CtrlStreamStatus,
+  type ChatUserMsg,
 } from "parakeet-proto";
 import { isFileGitIgnored, isFileTooLarge } from "./utilities/utils";
 import type { SettingsState } from "./utilities/state";
+import { storeChatMessage } from "./utilities/state";
 import { isDev, getStreamServerUrl } from "./utilities/env";
 import { startTerminalStreaming, stopTerminalStreaming } from "./terminal";
 import WS from "ws";
@@ -370,8 +372,13 @@ async function initSocket(context: vscode.ExtensionContext) {
         }
         return;
       case ChannelId.CHAT: {
-        const chat = unpackMsgpack<any>(payloadView);
+        const chat = unpackMsgpack<ChatUserMsg>(payloadView);
         log("[parakeet] chat:", chat);
+
+        // Store chat message in persistent state if we have context
+        if (state.context && chat) {
+          await storeChatMessage(state.context, chat);
+        }
 
         // Forward chat message to all registered chat callbacks
         state.chatCallbacks.forEach((callback) => {

@@ -3,6 +3,7 @@ import { stopAllStreams } from "../stream";
 import { validateStreamKey } from "./api";
 import z from "zod";
 import { error, log } from "../extension";
+import type { ChatUserMsg } from "parakeet-proto";
 
 const settingsStateSchema = z.object({
   shareOption: z
@@ -128,11 +129,96 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
   }
 };
 
+/**
+ * Store a chat message in persistent state (keeps last 50 messages)
+ * @param context VSCode extension context
+ * @param message Chat message to store
+ */
+export const storeChatMessage = async (
+  context: vscode.ExtensionContext,
+  message: ChatUserMsg
+) => {
+  try {
+    const chatHistory = context.globalState.get<ChatUserMsg[]>('messageHistory') || [];
+    
+    // Add new message and keep only last 50
+    const updatedHistory = [...chatHistory, message].slice(-50);
+    
+    await context.globalState.update('messageHistory', updatedHistory);
+  } catch (err) {
+    error("Error storing chat message:", err);
+  }
+};
+
+/**
+ * Get chat message history from persistent state
+ * @param context VSCode extension context
+ * @returns Array of chat messages
+ */
+export const getChatHistory = async (
+  context: vscode.ExtensionContext
+): Promise<ChatUserMsg[]> => {
+  try {
+    return context.globalState.get<ChatUserMsg[]>('messageHistory') || [];
+  } catch (err) {
+    error("Error getting chat history:", err);
+    return [];
+  }
+};
+
+/**
+ * Clear chat history from persistent state
+ * @param context VSCode extension context
+ */
+export const clearChatHistory = async (context: vscode.ExtensionContext) => {
+  try {
+    await context.globalState.update('messageHistory', []);
+  } catch (err) {
+    error("Error clearing chat history:", err);
+  }
+};
+
+/**
+ * Get settings from context state
+ * @param context VSCode extension context
+ * @returns Settings state
+ */
+export const getSettings = async (
+  context: vscode.ExtensionContext
+): Promise<SettingsState> => {
+  try {
+    const settings = context.globalState.get<SettingsState>('parakeet-settings');
+    return settingsStateSchema.parse(settings || {});
+  } catch (err) {
+    error("Error getting settings:", err);
+    return settingsStateSchema.parse({});
+  }
+};
+
+/**
+ * Save settings to context state
+ * @param context VSCode extension context
+ * @param settings Settings to save
+ */
+export const saveSettings = async (
+  context: vscode.ExtensionContext,
+  settings: SettingsState
+) => {
+  try {
+    const validatedSettings = settingsStateSchema.parse(settings);
+    await context.globalState.update('parakeet-settings', validatedSettings);
+  } catch (err) {
+    error("Error saving settings:", err);
+  }
+};
+
 export const logOut = async (context: vscode.ExtensionContext) => {
   // Stop all streams and disconnect socket before clearing auth data
   stopAllStreams();
 
   await clearAuthState(context);
+  // Clear chat history on logout
+  await clearChatHistory(context);
 
   syncAuthState(context);
 };

@@ -13,7 +13,9 @@ import {
 import { 
   registerWebviewForAuthUpdates, 
   unregisterWebviewForAuthUpdates, 
-  syncAuthState 
+  syncAuthState,
+  getChatHistory,
+  storeChatMessage
 } from "../utilities/state";
 
 /**
@@ -62,6 +64,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // Initial auth state sync
     syncAuthState(this._context);
+
+    // Send initial chat history to webview
+    this._sendChatHistory(webviewView.webview);
 
     // Set up chat message callback
     this._chatCallback = (message: any) => {
@@ -125,8 +130,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           return;
         case "sendChatMessage":
           if (message.message) {
+            // Store the message locally before sending
             sendChatMessage(message.message);
+            await storeChatMessage(this._context, message.message);
           }
+          return;
+        case "getChatHistory":
+          this._sendChatHistory(webviewView.webview);
           return;
       }
     });
@@ -155,6 +165,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         command: "tagsGenerated",
         tags: [],
       });
+    }
+  }
+
+  /**
+   * Send chat history to the webview
+   * @param webview VSCode webview instance
+   */
+  private async _sendChatHistory(webview: vscode.Webview): Promise<void> {
+    try {
+      const chatHistory = await getChatHistory(this._context);
+      webview.postMessage({
+        command: "chatHistory",
+        messages: chatHistory,
+      });
+    } catch (error) {
+      console.error("Error sending chat history:", error);
     }
   }
 

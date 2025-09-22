@@ -136,8 +136,13 @@
 				if (!isDuplicate) {
 					addMessage(message.message);
 				}
+			} else if (message.command === 'chatHistory') {
+				// Load initial chat history from extension
+				chatMessages.set(message.messages);
 			}
 		};
+
+		vscode.postMessage({ command: 'getChatHistory' });
 
 		window.addEventListener('message', messageHandler);
 		return () => window.removeEventListener('message', messageHandler);
