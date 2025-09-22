@@ -2,18 +2,20 @@ import * as vscode from "vscode";
 import { stopAllStreams } from "../stream";
 import { validateStreamKey } from "./api";
 import z from "zod";
+import { error, log } from "../extension";
 
 const settingsStateSchema = z.object({
-	shareOption: z.enum(['current-file', 'directory', 'everything']).default('current-file'),
-	streamTitle: z.string().default(''),
-	streamDescription: z.string().default(''),
-	saveVod: z.boolean().default(false),
-	userTags: z.array(z.string()).default([]),
-	autoTags: z.array(z.string()).default([])
+  shareOption: z
+    .enum(["current-file", "directory", "everything"])
+    .default("current-file"),
+  streamTitle: z.string().default(""),
+  streamDescription: z.string().default(""),
+  saveVod: z.boolean().default(false),
+  userTags: z.array(z.string()).default([]),
+  autoTags: z.array(z.string()).default([]),
 });
 
 export type SettingsState = z.infer<typeof settingsStateSchema>;
-
 
 // Store webview references for auth state updates
 let registeredWebviews: vscode.Webview[] = [];
@@ -72,11 +74,26 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
     const username = await context.secrets.get("parakeet-username");
     const imageUrl = await context.secrets.get("parakeet-imageUrl");
 
+    if (!token) {
+      const authState = {
+        authenticated: false,
+        user: null,
+      };
+
+      postAuthStateToWebviews(authState);
+      return authState;
+    }
+
     const isValid = await validateStreamKey(token, context);
+
+    if (!isValid) {
+      log("Invalid stream key");
+    }
 
     // Check if all auth info is present
     if (!token || !userId || !username || !imageUrl || !isValid) {
       // Clear any partial auth data and set as unauthenticated
+      log("Clearing auth state");
       await clearAuthState(context);
 
       const authState = {
@@ -99,9 +116,8 @@ export const syncAuthState = async (context: vscode.ExtensionContext) => {
 
     postAuthStateToWebviews(authState);
     return authState;
-  } catch (error) {
-    console.error("Error syncing auth state:", error);
-
+  } catch (err) {
+    error("Error syncing auth state:", err);
     const authState = {
       authenticated: false,
       user: null,
@@ -120,4 +136,3 @@ export const logOut = async (context: vscode.ExtensionContext) => {
 
   syncAuthState(context);
 };
-
