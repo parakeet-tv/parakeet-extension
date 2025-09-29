@@ -57,17 +57,18 @@ function injectCSPAndBase(
   return html.replace(
     /<head([^>]*)>/i,
     `<head$1>
-  <meta http-equiv="Content-Security-Policy" content="
-    default-src 'none';
-    img-src ${webview.cspSource} data: https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    font-src ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    style-src ${webview.cspSource} 'unsafe-inline' https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-eval' https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    script-src-elem 'nonce-${nonce}' ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    connect-src ${webview.cspSource} https: https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
-    worker-src ${webview.cspSource} blob:;
-    form-action 'none';
-  ">
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'none';
+      img-src ${webview.cspSource} data: https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      font-src ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      style-src ${webview.cspSource} 'unsafe-inline' https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      script-src 'nonce-${nonce}' ${webview.cspSource} 'unsafe-eval' https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      script-src-elem 'nonce-${nonce}' ${webview.cspSource} https://*.parakeet.tv https://parakeet.tv https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      connect-src ${webview.cspSource} https: wss: https://*.parakeet.tv https://parakeet.tv https://rtc.live.cloudflare.com https://smart-kodiak-9.clerk.accounts.dev https://*.accounts.dev https://accounts.dev https://*.clerk.com https://clerk.com;
+      media-src ${webview.cspSource} blob: mediastream:;
+      worker-src ${webview.cspSource} blob:;
+      form-action 'none';
+    ">
   <base href="./">`
   );
 }
@@ -75,10 +76,16 @@ function injectCSPAndBase(
 /**
  * Rewrites asset URLs in attributes (src/href), including rel="modulepreload"
  */
-function rewriteAssetUrls(html: string, toWebviewUri: (url: string) => string): string {
-  const ATTR_URL = /(src|href)=["'](?!https?:|data:|vscode-webview:)([^"']+)["']/g;
+function rewriteAssetUrls(
+  html: string,
+  toWebviewUri: (url: string) => string
+): string {
+  const ATTR_URL =
+    /(src|href)=["'](?!https?:|data:|vscode-webview:)([^"']+)["']/g;
   return html.replace(ATTR_URL, (m, attr, url) => {
-    if (/^(?:\.\/|\/|_app\/|assets\/|favicon|manifest\.webmanifest)/.test(url)) {
+    if (
+      /^(?:\.\/|\/|_app\/|assets\/|favicon|manifest\.webmanifest)/.test(url)
+    ) {
       return `${attr}="${toWebviewUri(url)}"`;
     }
     return m;
@@ -88,7 +95,10 @@ function rewriteAssetUrls(html: string, toWebviewUri: (url: string) => string): 
 /**
  * Rewrites dynamic import("./_app/...") inside inline scripts
  */
-function rewriteDynamicImports(html: string, toWebviewUri: (url: string) => string): string {
+function rewriteDynamicImports(
+  html: string,
+  toWebviewUri: (url: string) => string
+): string {
   return html.replace(
     /import\(\s*["'](\.\/_app\/[^"']+)["']\s*\)/g,
     (_m, rel) => `import("${toWebviewUri(rel)}")`
@@ -118,16 +128,22 @@ function overrideSvelteKitBasePath(html: string): string {
 /**
  * Injects extension mode and chat mode flags
  */
-function injectExtensionFlags(html: string, nonce: string, config: HtmlConfig): string {
-  const chatModeScript = config.isChatMode 
-    ? "  window.__PARAKEET_CHAT_MODE__ = true;\n" 
+function injectExtensionFlags(
+  html: string,
+  nonce: string,
+  config: HtmlConfig
+): string {
+  const chatModeScript = config.isChatMode
+    ? "  window.__PARAKEET_CHAT_MODE__ = true;\n"
     : "";
-  
+
   return html.replace(
     /<head([^>]*)>/i,
     `<head$1>
 <script nonce="${nonce}">
-  // Set extension mode${config.isChatMode ? " and chat mode" : ""} for SvelteKit app before it loads
+  // Set extension mode${
+    config.isChatMode ? " and chat mode" : ""
+  } for SvelteKit app before it loads
 ${chatModeScript}  window.__PARAKEET_EXTENSION_MODE__ = ${config.extensionMode};
 </script>`
   );
